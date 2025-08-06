@@ -48,6 +48,7 @@ export async function GET(
           scheduledAt: interview.interviewDate,
           status: interview.interviewStatus,
           instructions: 'Complete the interview questions to the best of your ability.',
+          interviewQuestions: interview.interviewQuestions,
         }
       });
     }
@@ -87,6 +88,15 @@ export async function GET(
         .where(eq(interviewSetups.id, interview.setupId || ''))
         .limit(1);
 
+      // Get interview questions from Interview table
+      const interviewData = await db
+        .select({
+          interviewQuestions: Interview.interviewQuestions
+        })
+        .from(Interview)
+        .where(eq(Interview.interviewId, interview.interviewId))
+        .limit(1);
+
       let companyName = 'Company';
       if (campaign.length > 0 && campaign[0].companyId) {
         const company = await db
@@ -112,6 +122,7 @@ export async function GET(
           scheduledAt: interview.scheduledAt,
           status: interview.status,
           instructions: setup.length > 0 ? setup[0].instructions : 'Complete the interview questions to the best of your ability.',
+          interviewQuestions: interviewData.length > 0 ? interviewData[0].interviewQuestions : null,
         }
       });
     }
@@ -142,6 +153,7 @@ export async function GET(
           scheduledAt: interview.interviewDate,
           status: interview.interviewStatus,
           instructions: 'Complete the coding challenges to demonstrate your programming skills.',
+          interviewQuestions: interview.codingQuestions,
         }
       });
     }

@@ -261,6 +261,7 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
     try {
       const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -320,6 +321,7 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
     try {
       const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },

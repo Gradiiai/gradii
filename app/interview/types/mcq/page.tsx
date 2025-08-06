@@ -51,41 +51,34 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
   
   // Get URL parameters
   const email = searchParams.get('email');
+  const interviewId = searchParams.get('interviewId'); // Get from query params instead of route params
   const [interview, setInterview] = useState<InterviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [interviewId, setInterviewId] = useState<string | null>(null);
-
-
-
-  // Resolve params on component mount
-  useEffect(() => {
-    const resolveParams = async () => {
-      const resolvedParams = await params;
-      setInterviewId(resolvedParams.id);
-    };
-    resolveParams();
-  }, [params]);
 
   useEffect(() => {
-    if (!email || !interviewId) {
-      if (!email) {
-        setError('Missing email parameter');
-        setLoading(false);
-      }
+    console.log('MCQ useEffect triggered:', { interviewId, email });
+    
+    if (!interviewId) {
+      console.log('No interviewId, returning early');
       return;
     }
+    
+    // If no email in URL params, we'll try to load the interview anyway
+    // as the session should contain the email
 
     // Validate email and load interview data
     const validateAndLoadInterview = async () => {
+      console.log('Starting validateAndLoadInterview');
       try {
         const response = await fetch(
           `/api/interview/${interviewId}`,
           {
             method: 'GET',
+            credentials: 'include',
             headers: {
               'Content-Type': 'application/json',
             },
@@ -200,10 +193,12 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
     
     // Auto-save progress
     try {
-      if (!email) return;
+      const emailToUse = email || interview?.candidateEmail;
+      if (!emailToUse) return;
       
       await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -212,7 +207,7 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
           answers: newAnswers,
           timeSpent: interview?.duration ? (interview.duration * 60 - timeRemaining) : 0,
           questionType: 'mcq',
-          email: email
+          email: emailToUse
         }),
       });
     } catch (err) {
@@ -235,19 +230,18 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
 
   const startInterview = async () => {
     try {
-      if (!email) {
-        console.error('Missing email parameter');
-        return;
-      }
+      // Use email from URL params or interview data
+      const emailToUse = email || interview?.candidateEmail;
       
       await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           action: 'start',
-          email: email
+          email: emailToUse
         }),
       });
     } catch (err) {
@@ -257,13 +251,15 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
 
   const handleSubmitInterview = async () => {
     try {
-      if (!email) {
+      const emailToUse = email || interview?.candidateEmail;
+      if (!emailToUse) {
         setError('Missing email parameter');
         return;
       }
       
       const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -272,7 +268,7 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
           answers: answers,
           timeSpent: interview?.duration ? (interview.duration * 60 - timeRemaining) : 0,
           questionType: 'mcq',
-          email: email
+          email: emailToUse
         }),
       });
 

@@ -93,8 +93,10 @@ function OTPVerificationContent() {
       const response = await fetch('/api/interview/resend-otp', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'},
-        body: JSON.stringify({ email })});
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, interviewId })
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

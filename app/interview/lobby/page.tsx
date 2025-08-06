@@ -56,7 +56,10 @@ function InterviewLobbyContent() {
         }
 
         const response = await fetch(
-          `/api/interview/${interviewId}`
+          `/api/interview/${interviewId}`,
+          {
+            credentials: 'include'
+          }
         );
 
         if (!response.ok) {

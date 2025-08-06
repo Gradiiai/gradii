@@ -53,10 +53,8 @@ export async function POST(request: NextRequest) {
       const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
       const containerClient = blobServiceClient.getContainerClient(containerName);
 
-      // Ensure container exists
-      await containerClient.createIfNotExists({
-        access: 'blob'
-      });
+      // Ensure container exists (private access since public access is disabled)
+      await containerClient.createIfNotExists();
 
       // Create unique blob name
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

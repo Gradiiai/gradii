@@ -450,10 +450,11 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
       if (!email) return;
       
       await fetch(`/api/interview/${interviewId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         body: JSON.stringify({
           action: 'save_progress',
           answers: newAnswers,
@@ -485,10 +486,11 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
       if (!email) return;
       
       await fetch(`/api/interview/${interviewId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         body: JSON.stringify({
           action: 'start'
         }),
@@ -510,10 +512,11 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
       }
       
       const response = await fetch(`/api/interview/${interviewId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
         body: JSON.stringify({
           action: 'submit',
           answers: answers,

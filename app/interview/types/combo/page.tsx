@@ -272,10 +272,12 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
       // Start full interview recording
       startFullInterviewRecording();
       
-      const response = await fetch(`/api/interview/${interviewId}`, {
+   const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidateEmail: email }),
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },body: JSON.stringify({ candidateEmail: email }),
       });
 
       if (response.ok) {
@@ -331,8 +333,11 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
           
           // Submit interview with all data including video URL
           const response = await fetch(`/api/interview/${interviewId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
             body: JSON.stringify({
               ...submissionData,
               videoRecordingUrl

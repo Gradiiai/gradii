@@ -70,16 +70,22 @@ const candidateProtectedRoutes = [
 export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Allow public routes first
+  if (publicRoutes.some(route => pathname.startsWith(route))) {
+    return NextResponse.next();
+  }
+  
   // Check for protected interview routes that require OTP verification
   if (pathname.startsWith('/interview/lobby') || 
       pathname.startsWith('/interview/types') || 
       pathname.startsWith('/interview/complete') ||
       pathname.startsWith('/api/interview/')) {
     
-    // Skip verification for the verification APIs themselves
+    // Skip verification for the verification APIs themselves and details endpoint
     if (pathname.includes('/verify-email') || 
         pathname.includes('/verify-otp') || 
-        pathname.includes('/resend-otp')) {
+        pathname.includes('/resend-otp') ||
+        pathname.includes('/details')) {
       return NextResponse.next();
     }
     
@@ -89,11 +95,6 @@ export default async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/interview/verify', request.url));
     }
     
-    return NextResponse.next();
-  }
-  
-  // Allow other public routes
-  if (publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
   }
 

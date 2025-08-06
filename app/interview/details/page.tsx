@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/shared/card";
 import { Button } from "@/components/ui/shared/button";
@@ -73,7 +73,7 @@ const interviewTypeConfig = {
   },
 };
 
-export default function InterviewDetailsPage() {
+function InterviewDetailsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [interview, setInterview] = useState<InterviewDetails | null>(null);
@@ -342,5 +342,20 @@ export default function InterviewDetailsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InterviewDetailsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading interview details...</p>
+        </div>
+      </div>
+    }>
+      <InterviewDetailsContent />
+    </Suspense>
   );
 }

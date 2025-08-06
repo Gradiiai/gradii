@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared/card';
 import { Button } from '@/components/ui/shared/button';
@@ -33,7 +33,7 @@ interface Interview {
   instructions?: string;
 }
 
-export default function InterviewLobby() {
+function InterviewLobbyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [interview, setInterview] = useState<Interview | null>(null);
@@ -343,5 +343,20 @@ export default function InterviewLobby() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function InterviewLobby() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading interview lobby...</p>
+        </div>
+      </div>
+    }>
+      <InterviewLobbyContent />
+    </Suspense>
   );
 }

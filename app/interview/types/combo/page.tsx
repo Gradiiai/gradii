@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/shared/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared/card';
@@ -46,7 +46,7 @@ interface Question {
   starterCode?: string;
 }
 
-export default function ComboInterviewPage({ params }: ComboInterviewProps) {
+function ComboInterviewContent({ params }: ComboInterviewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -799,5 +799,20 @@ export default function ComboInterviewPage({ params }: ComboInterviewProps) {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ComboInterviewPage({ params }: ComboInterviewProps) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading combo interview...</p>
+        </div>
+      </div>
+    }>
+      <ComboInterviewContent params={params} />
+    </Suspense>
   );
 }

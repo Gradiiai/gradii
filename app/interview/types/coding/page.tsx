@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/shared/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared/card';
@@ -9,17 +9,23 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Play, 
+  Pause,
+  Square,
   FileCode, 
   Settings2, 
   Undo2, 
   Redo2, 
   Camera, 
+  Mic,
+  MicOff,
   Clock,
   CheckCircle,
   ArrowLeft,
   ArrowRight,
   Code2,
-  Terminal
+  Terminal,
+  User,
+  Briefcase
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/shared/tabs';
 
@@ -45,7 +51,7 @@ interface CodingQuestion {
   supportedLanguages?: string[];
 }
 
-export default function CodingInterviewPage({ params }: CodingInterviewProps) {
+function CodingInterviewContent({ params }: CodingInterviewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -642,5 +648,20 @@ export default function CodingInterviewPage({ params }: CodingInterviewProps) {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CodingInterviewPage({ params }: CodingInterviewProps) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading coding interview...</p>
+        </div>
+      </div>
+    }>
+      <CodingInterviewContent params={params} />
+    </Suspense>
   );
 }

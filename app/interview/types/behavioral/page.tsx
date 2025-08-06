@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/shared/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared/card';
@@ -59,7 +59,7 @@ interface BehavioralQuestion {
   timeLimit?: number;
 }
 
-export default function BehavioralInterviewPage({ params }: BehavioralInterviewProps) {
+function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -918,5 +918,20 @@ export default function BehavioralInterviewPage({ params }: BehavioralInterviewP
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function BehavioralInterviewPage({ params }: BehavioralInterviewProps) {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading behavioral interview...</p>
+        </div>
+      </div>
+    }>
+      <BehavioralInterviewContent params={params} />
+    </Suspense>
   );
 }

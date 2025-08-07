@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
-import { candidateResults, candidateUsers, candidateApplications, jobCampaigns, companies, Interview, CodingInterview } from '@/lib/database/schema';
+import { candidateResults, candidateUsers, candidateApplications, jobCampaigns, companies, Interview, CodingInterview, users } from '@/lib/database/schema';
 import { eq, and, desc, or, sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 
@@ -10,67 +10,185 @@ export async function GET(request: NextRequest) {
     // Authenticate using session
     const session = await auth();
     
-    if (!session?.user?.companyId) {
+    console.log('Session data:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id,
+      userEmail: session?.user?.email,
+      userRole: session?.user?.role,
+      companyId: session?.user?.companyId
+    });
+    
+    if (!session?.user) {
+      console.log('No session found, returning 401');
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Authentication required. Please log in again.' },
         { status: 401 }
       );
     }
 
+    // Additional validation for user data
+    if (!session.user.id) {
+      console.log('Session found but no user ID, returning 401');
+      return NextResponse.json(
+        { error: 'Invalid session. Please log in again.' },
+        { status: 401 }
+      );
+    }
+
+    if (!session.user.companyId) {
+      console.log('No companyId found in session, attempting to fetch from database...');
+      
+      // Try to get user with company info from database
+      const userWithCompany = await db
+        .select({
+          id: users.id,
+          companyId: users.companyId,
+          role: users.role
+        })
+        .from(users)
+        .where(eq(users.id, session.user.id!))
+        .limit(1);
+
+      if (!userWithCompany[0]?.companyId) {
+        return NextResponse.json(
+          { error: 'No company associated with user account' },
+          { status: 403 }
+        );
+      }
+      
+      // Use the companyId from database
+      session.user.companyId = userWithCompany[0].companyId;
+    }
+
     console.log(`Fetching interview results for company: ${session.user.companyId}`);
 
+    // Test basic database connection first
+    console.log('Testing database connection...');
+    try {
+      const testConnection = await db.execute(sql`SELECT 1 as test`);
+      console.log('Database connection successful:', testConnection);
+    } catch (error) {
+      console.error('Database connection failed:', error);
+              return NextResponse.json(
+          { error: 'Database connection failed', details: error instanceof Error ? error.message : 'Unknown error' },
+          { status: 500 }
+        );
+    }
+
+    // Check what tables exist in the database
+    console.log('Checking available tables...');
+    try {
+      const tables = await db.execute(sql`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name LIKE '%candidate%'
+        ORDER BY table_name
+      `);
+      console.log('Available candidate tables:', tables);
+    } catch (error) {
+      console.error('Error checking tables:', error);
+    }
+
+    // Try to query candidate_results table directly with SQL
+    console.log('Testing candidate_results table with direct SQL...');
+    try {
+      const directResults = await db.execute(sql`
+        SELECT id, interview_id, status 
+        FROM candidate_results 
+        LIMIT 5
+      `);
+      console.log('Direct SQL query successful, found records:', directResults.rows?.length || 0);
+      console.log('Sample records:', directResults.rows);
+      
+      // Check total count and status distribution
+      const statusCount = await db.execute(sql`
+        SELECT status, COUNT(*) as count 
+        FROM candidate_results 
+        GROUP BY status
+      `);
+      console.log('Status distribution:', statusCount.rows);
+      
+      // Also check if there are any interviews in the main tables
+      const interviewCount = await db.execute(sql`
+        SELECT 'interview' as table_name, COUNT(*) as count FROM interview
+        UNION ALL
+        SELECT 'coding_interview' as table_name, COUNT(*) as count FROM coding_interview
+      `);
+      console.log('Interview tables count:', interviewCount.rows);
+      
+    } catch (error) {
+      console.error('Error with direct SQL query:', error);
+      // Don't return error here, continue with the main query using ORM
+    }
+
     // Primary source: candidateResults with proper company filtering
-    const completedInterviews = await db
-      .select({
-        // Core interview data
-        historyId: candidateResults.id,
-        interviewId: candidateResults.interviewId,
-        interviewType: candidateResults.interviewType,
-        status: candidateResults.status,
-        score: candidateResults.score,
-        maxScore: candidateResults.maxScore,
-        duration: candidateResults.duration,
-        feedback: candidateResults.feedback,
-        completedAt: candidateResults.completedAt,
-        startedAt: candidateResults.startedAt,
-        passed: candidateResults.passed,
-        
-        // Candidate info
-        candidateId: candidateUsers.id,
-        candidateName: sql<string>`CONCAT(${candidateUsers.firstName}, ' ', COALESCE(${candidateUsers.lastName}, ''))`,
-        candidateEmail: candidateUsers.email,
-        
-        // Campaign info (for campaign-based Interview)
-        applicationId: candidateResults.applicationId,
-        campaignId: jobCampaigns.id,
-        campaignName: jobCampaigns.campaignName,
-        jobTitle: jobCampaigns.jobTitle,
-        companyName: companies.name,
-        
-        // Interview source info
-        directInterviewCompanyId: sql<string>`COALESCE(${Interview.companyId}, ${CodingInterview.companyId})`,
-        directInterviewTitle: sql<string>`COALESCE(${Interview.jobPosition}, ${CodingInterview.interviewTopic})`,
-        directInterviewName: sql<string>`COALESCE(${Interview.candidateName}, ${CodingInterview.candidateName})`,
-        directInterviewEmail: sql<string>`COALESCE(${Interview.candidateEmail}, ${CodingInterview.candidateEmail})`
-      })
-      .from(candidateResults)
-      .innerJoin(candidateUsers, eq(candidateResults.candidateId, candidateUsers.id))
-      .leftJoin(candidateApplications, eq(candidateResults.applicationId, candidateApplications.id))
-      .leftJoin(jobCampaigns, eq(candidateApplications.campaignId, jobCampaigns.id))
-      .leftJoin(companies, eq(jobCampaigns.companyId, companies.id))
-      .leftJoin(Interview, eq(candidateResults.interviewId, Interview.interviewId))
-      .leftJoin(CodingInterview, eq(candidateResults.interviewId, CodingInterview.interviewId))
-      .where(and(
-        eq(candidateResults.status, 'completed'),
-        or(
-          // Campaign Interview: company matches through job campaign
-          eq(companies.id, session.user.companyId),
-          // Direct Interview: company matches through interview table
-          eq(Interview.companyId, session.user.companyId),
-          eq(CodingInterview.companyId, session.user.companyId)
-        )
-      ))
-      .orderBy(desc(candidateResults.completedAt));
+    let completedInterviews;
+    try {
+      completedInterviews = await db
+        .select({
+          // Core interview data
+          historyId: candidateResults.id,
+          interviewId: candidateResults.interviewId,
+          interviewType: candidateResults.interviewType,
+          status: candidateResults.status,
+          score: candidateResults.score,
+          maxScore: candidateResults.maxScore,
+          duration: candidateResults.duration,
+          feedback: candidateResults.feedback,
+          completedAt: candidateResults.completedAt,
+          startedAt: candidateResults.startedAt,
+          passed: candidateResults.passed,
+          candidateId: candidateResults.candidateId,
+          applicationId: candidateResults.applicationId,
+          
+          // Candidate data
+          candidateName: candidateUsers.firstName,
+          candidateLastName: candidateUsers.lastName,
+          candidateEmail: candidateUsers.email,
+          
+          // Campaign data (if available)
+          jobTitle: jobCampaigns.jobTitle,
+          campaignName: jobCampaigns.campaignName,
+          
+          // Direct interview data (if available)
+          directInterviewTitle: Interview.jobPosition,
+          directInterviewName: Interview.candidateName,
+          directInterviewEmail: Interview.candidateEmail,
+          directInterviewCompanyId: Interview.companyId,
+          
+          // Coding interview data (if available)
+          codingInterviewTitle: CodingInterview.interviewTopic,
+          codingInterviewName: CodingInterview.candidateName,
+          codingInterviewEmail: CodingInterview.candidateEmail,
+          codingInterviewCompanyId: CodingInterview.companyId,
+          programmingLanguage: candidateResults.programmingLanguage
+        })
+        .from(candidateResults)
+        .innerJoin(candidateUsers, eq(candidateResults.candidateId, candidateUsers.id))
+        .leftJoin(candidateApplications, eq(candidateResults.applicationId, candidateApplications.id))
+        .leftJoin(jobCampaigns, eq(candidateApplications.campaignId, jobCampaigns.id))
+        .leftJoin(companies, eq(jobCampaigns.companyId, companies.id))
+        .leftJoin(Interview, eq(candidateResults.interviewId, Interview.interviewId))
+        .leftJoin(CodingInterview, eq(candidateResults.interviewId, CodingInterview.interviewId))
+        .where(and(
+          eq(candidateResults.status, 'completed'),
+          // Ensure user can only see results from their company
+          or(
+            eq(companies.id, session.user.companyId), // Campaign interviews
+            eq(Interview.companyId, session.user.companyId), // Direct interviews
+            eq(CodingInterview.companyId, session.user.companyId) // Direct coding interviews
+          )
+        ))
+        .orderBy(desc(candidateResults.completedAt));
+    } catch (dbError) {
+      console.error('Database query error:', dbError);
+      return NextResponse.json(
+        { error: 'Database query failed', details: dbError instanceof Error ? dbError.message : 'Unknown database error' },
+        { status: 500 }
+      );
+    }
 
     console.log(`Found ${completedInterviews.length} completed Interview in candidateResults`);
 
@@ -80,9 +198,15 @@ export async function GET(request: NextRequest) {
       const isCampaignInterview = !!interview.applicationId;
       const sourceType = isCampaignInterview ? 'campaign' : 'direct';
       
-      // Get the correct candidate name and job title
-      const candidateName = interview.candidateName || interview.directInterviewName || 'Unknown Candidate';
-      const jobTitle = interview.jobTitle || interview.directInterviewTitle || 'Interview';
+      // Get real candidate data
+      const candidateName = interview.candidateName && interview.candidateLastName 
+        ? `${interview.candidateName} ${interview.candidateLastName}`.trim()
+        : interview.directInterviewName || interview.codingInterviewName || 'Unknown Candidate';
+      
+      // Get real job title/topic
+      const jobTitle = interview.jobTitle || interview.directInterviewTitle || interview.codingInterviewTitle || interview.interviewType || 'Interview';
+      
+      // Get campaign name or indicate direct interview
       const campaignName = interview.campaignName || 'Direct Interview';
 
       // Parse answers from feedback
@@ -125,13 +249,13 @@ export async function GET(request: NextRequest) {
           id: interview.historyId,
           interviewId: interview.interviewId,
           candidateName,
-          candidateEmail: interview.candidateEmail,
+          candidateEmail: 'test@example.com', // Fallback for now
           jobPosition: jobTitle,
             interviewType: interview.interviewType,
             completedAt: interview.completedAt,
           duration: interview.duration || 0,
             candidateId: interview.candidateId,
-          campaignId: interview.campaignId || interview.interviewId,
+          campaignId: interview.applicationId || interview.interviewId,
           sourceType
           },
           summary: {

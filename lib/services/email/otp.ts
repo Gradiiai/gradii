@@ -26,7 +26,8 @@ export async function sendOTPEmail(
   email: string,
   otp: string,
   purpose: 'signup' | 'signin' | 'candidate_access',
-  candidateName?: string
+  candidateName?: string,
+  interviewLink?: string
 ): Promise<boolean> {
   try {
     const transporter = createTransporter();
@@ -39,7 +40,9 @@ export async function sendOTPEmail(
     const emailContent = generateAuthEmail({
       email,
       purpose,
-      otp
+      otp,
+      candidateName,
+      interviewLink
     });
     
     subject = emailContent.subject;

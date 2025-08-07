@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
-import { Interview, InterviewAnalytics } from '@/lib/database/schema';
-import { eq } from 'drizzle-orm';
+import { Interview, InterviewAnalytics, candidateResults, candidateUsers } from '@/lib/database/schema';
+import { eq, and } from 'drizzle-orm';
 import { createAnalyticsRecord, updateAnalyticsRecord } from '@/lib/services/analytics';
 import { generateJSONWithOpenAI, AI_CONFIGS } from '@/lib/integrations/ai/openai';
 
@@ -154,6 +154,99 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date()
       })
       .where(eq(Interview.interviewId, interviewId));
+
+    // Save answers to candidateResults table for result fetching
+    try {
+      // Get or create candidate user record
+      let candidateUserId: string;
+      const candidateNameFromEmail = candidateEmail.split('@')[0];
+      
+      // Try to find existing candidate user
+      const existingCandidate = await db
+        .select({ id: candidateUsers.id })
+        .from(candidateUsers)
+        .where(eq(candidateUsers.email, candidateEmail))
+        .limit(1);
+
+      if (existingCandidate.length > 0) {
+        candidateUserId = existingCandidate[0].id;
+      } else {
+        // Create new candidate user if not exists
+        const [newCandidate] = await db
+          .insert(candidateUsers)
+          .values({
+            email: candidateEmail,
+            firstName: candidateNameFromEmail,
+            lastName: '',
+            isActive: true,
+            isEmailVerified: false
+          })
+          .returning({ id: candidateUsers.id });
+        
+        candidateUserId = newCandidate.id;
+      }
+
+      // Check if candidate interview history record exists for this specific candidate
+      const existingHistory = await db
+        .select()
+        .from(candidateResults)
+        .where(and(
+          eq(candidateResults.interviewId, interviewId),
+          eq(candidateResults.candidateId, candidateUserId)
+        ))
+        .limit(1);
+
+      const structuredAnswers = {
+        answers: detailedResults,
+        submittedAt: new Date().toISOString(),
+        interviewType: 'mcq',
+        timeSpent: totalTimeSpent || 0,
+        score: correctAnswers,
+        maxScore: totalQuestions,
+        completionRate: scorePercentage,
+        feedback: feedback
+      };
+
+      if (existingHistory.length > 0) {
+        // Update existing record for this specific candidate
+        await db
+          .update(candidateResults)
+          .set({
+            status: 'completed',
+            completedAt: new Date(),
+            feedback: JSON.stringify(structuredAnswers),
+            score: correctAnswers,
+            maxScore: totalQuestions,
+            duration: Math.round(totalTimeSpent / 60), // Convert to minutes
+            passed: scorePercentage >= 60
+          })
+          .where(and(
+            eq(candidateResults.interviewId, interviewId),
+            eq(candidateResults.candidateId, candidateUserId)
+          ));
+      } else {
+        // Create new record if it doesn't exist
+        await db.insert(candidateResults).values({
+          interviewId: interviewId,
+          candidateId: candidateUserId,
+          interviewType: 'mcq',
+          status: 'completed',
+          completedAt: new Date(),
+          feedback: JSON.stringify(structuredAnswers),
+          score: correctAnswers,
+          maxScore: totalQuestions,
+          duration: Math.round(totalTimeSpent / 60), // Convert to minutes
+          passed: scorePercentage >= 60,
+          startedAt: new Date(), // Assume started at completion time for now
+          roundNumber: 1
+        });
+      }
+
+      console.log(`Saved MCQ interview results to candidate history for interview ${interviewId}`);
+    } catch (historyError) {
+      console.error('Error saving MCQ interview to candidate history:', historyError);
+      // Continue execution even if history saving fails
+    }
 
     // Create or update analytics record
     try {

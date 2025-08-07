@@ -10,27 +10,31 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue} from "@/components/ui/select";
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle} from "@/components/ui/shared/dialog";
+  DialogTitle,
+} from "@/components/ui/shared/dialog";
 import {
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
-  TableRow} from "@/components/ui/shared/table";
+  TableRow,
+} from "@/components/ui/shared/table";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle} from "@/components/ui/shared/card";
+  CardTitle,
+} from "@/components/ui/shared/card";
 import { Badge } from "@/components/ui/shared/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/shared/label";
@@ -63,18 +67,21 @@ import {
   Calendar,
   Layers,
   MoveLeft,
-  ArrowLeftIcon} from "lucide-react";
+  ArrowLeftIcon,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator} from "@/components/ui/shared/dropdown-menu";
+  DropdownMenuSeparator,
+} from "@/components/ui/shared/dropdown-menu";
 import {
   Tabs,
   TabsContent,
   TabsList,
-  TabsTrigger} from "@/components/ui/shared/tabs";
+  TabsTrigger,
+} from "@/components/ui/shared/tabs";
 import {
   QUESTION_CATEGORIES,
   INTERVIEW_TYPES,
@@ -84,7 +91,8 @@ import {
   TECHNICAL_SUBCATEGORIES,
   SKILLS_SUBCATEGORIES,
   SCREENING_SUBCATEGORIES,
-  COMMUNICATION_SUBCATEGORIES} from "@/lib/constants/question-bank";
+  COMMUNICATION_SUBCATEGORIES,
+} from "@/lib/constants/question-bank";
 import { Twinkle_Star } from "next/font/google";
 
 // Define the Question type
@@ -116,6 +124,7 @@ interface Question {
   validatedBy?: string;
   validatedAt?: string;
   revisionNumber: number;
+  collection_id: string;
 }
 
 // Define the QuestionCollection type
@@ -134,6 +143,10 @@ interface QuestionCollection {
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
+  questionTypes?: {
+    type: string;
+    count: number;
+  }[];
 }
 
 // Question Bank Template type
@@ -148,9 +161,7 @@ interface QuestionCollectionTemplate {
   difficultyLevels: string[];
   estimatedQuestions: number;
   questionTypes: string[];
-
 }
-
 
 export default function QuestionCollectionPage() {
   const { data: session } = useSession();
@@ -163,6 +174,7 @@ export default function QuestionCollectionPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [questionsLoading, setQuestionsLoading] = useState(false);
+
 
   // View state
   const [currentView, setCurrentView] = useState<"collections" | "questions">(
@@ -187,7 +199,8 @@ export default function QuestionCollectionPage() {
     tags: "",
     isPublic: false,
     isTemplate: false,
-    collectionType: "custom"});
+    collectionType: "custom",
+  });
 
   // Templates state
   const [templates, setTemplates] = useState<QuestionCollectionTemplate[]>([]);
@@ -206,7 +219,8 @@ export default function QuestionCollectionPage() {
     category: "",
     search: "",
     sortBy: "createdAt",
-    sortOrder: "desc" as "asc" | "desc"});
+    sortOrder: "desc" as "asc" | "desc",
+  });
 
   // Question form state
   const [questionFormData, setQuestionFormData] = useState({
@@ -217,12 +231,21 @@ export default function QuestionCollectionPage() {
     expectedAnswer: "",
     sampleAnswer: "",
     scoringRubric: "",
-    tags: ""});
+    tags: "",
+  });
 
   // Filter state for questions
   const [questionFilters, setQuestionFilters] = useState({
     questionType: "",
-    search: ""});
+    search: "",
+    difficulty: "all",
+  });
+  const filteredQuestions =
+  questionFilters.difficulty === "all"
+    ? questions
+    : questions.filter(
+        (q) => q.difficultyLevel.toLowerCase() === questionFilters.difficulty
+      );
 
   // AI Generation state
   const [aiFormData, setAiFormData] = useState({
@@ -237,7 +260,8 @@ export default function QuestionCollectionPage() {
     difficulty: "medium",
     topic: "",
     category: "",
-    languages: ['javascript']});
+    languages: ["javascript"],
+  });
 
   useEffect(() => {
     if (!session) return;
@@ -310,8 +334,10 @@ export default function QuestionCollectionPage() {
       const response = await fetch("/api/content/questions/banks", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"},
-        body: JSON.stringify(collectionFormData)});
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(collectionFormData),
+      });
 
       const data = await response.json();
 
@@ -336,10 +362,13 @@ export default function QuestionCollectionPage() {
       const response = await fetch("/api/content/questions", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"},
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           ...questionFormData,
-          collectionId: selectedCollection.id})});
+          collectionId: selectedCollection.id,
+        }),
+      });
 
       const data = await response.json();
 
@@ -366,8 +395,10 @@ export default function QuestionCollectionPage() {
         {
           method: "PUT",
           headers: {
-            "Content-Type": "application/json"},
-          body: JSON.stringify(questionFormData)}
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(questionFormData),
+        }
       );
 
       const data = await response.json();
@@ -392,7 +423,8 @@ export default function QuestionCollectionPage() {
 
     try {
       const response = await fetch(`/api/content/questions/${questionId}`, {
-        method: "DELETE"});
+        method: "DELETE",
+      });
 
       const data = await response.json();
 
@@ -435,7 +467,8 @@ export default function QuestionCollectionPage() {
       const response = await fetch(
         `/api/content/questions/banks/${collectionToDelete.id}`,
         {
-          method: "DELETE"}
+          method: "DELETE",
+        }
       );
 
       const data = await response.json();
@@ -451,7 +484,7 @@ export default function QuestionCollectionPage() {
           // Conflict - show detailed error information
           toast.error(
             data.details?.message ||
-            "Cannot delete question bank - it is in use"
+              "Cannot delete question bank - it is in use"
           );
         } else {
           toast.error(data.error || "Failed to delete question bank");
@@ -490,7 +523,9 @@ export default function QuestionCollectionPage() {
         body: JSON.stringify({
           templateId: template.name,
           customName,
-          customDescription})});
+          customDescription,
+        }),
+      });
 
       const data = await response.json();
 
@@ -527,7 +562,9 @@ export default function QuestionCollectionPage() {
                 topic: template.name || template.description || "General",
                 totalQuestions: "5",
                 difficulty: "medium",
-                type: type})});
+                type: type,
+              }),
+            });
 
             if (response.ok) {
               const responseText = await response.text();
@@ -546,7 +583,8 @@ export default function QuestionCollectionPage() {
                     expectedAnswer: q.explanation,
                     category: "Technical",
                     difficultyLevel: q.difficulty || "medium",
-                    questionBankId: questionBankId};
+                    questionBankId: questionBankId,
+                  };
                 } else if (type === "mcq") {
                   return {
                     questionType: "mcq",
@@ -554,7 +592,8 @@ export default function QuestionCollectionPage() {
                     expectedAnswer: q.correctAnswer,
                     category: "Technical",
                     difficultyLevel: q.difficulty || "medium",
-                    questionBankId: questionBankId};
+                    questionBankId: questionBankId,
+                  };
                 } else if (type === "behavioral") {
                   return {
                     questionType: "behavioral",
@@ -562,7 +601,8 @@ export default function QuestionCollectionPage() {
                     expectedAnswer: q.purpose,
                     category: "Behavioral",
                     difficultyLevel: "medium",
-                    questionBankId: questionBankId};
+                    questionBankId: questionBankId,
+                  };
                 }
               });
 
@@ -570,7 +610,8 @@ export default function QuestionCollectionPage() {
                 await fetch("/api/content/questions", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(questionData)});
+                  body: JSON.stringify(questionData),
+                });
               }
             } else {
               toast.error(`Failed to generate ${type} questions`);
@@ -589,7 +630,8 @@ export default function QuestionCollectionPage() {
       toast.error("Failed to create question bank from template");
     }
   };
-  const preferredLanguage = aiFormData.languages?.[0]?.toLowerCase() || 'javascript';
+  const preferredLanguage =
+    aiFormData.languages?.[0]?.toLowerCase() || "javascript";
 
   const handleGenerateQuestions = async () => {
     if (!selectedCollection) return;
@@ -637,7 +679,8 @@ export default function QuestionCollectionPage() {
 
       const response = await fetch(endpoint, {
         method: "POST",
-        body: formData});
+        body: formData,
+      });
 
       const responseText = await response.text();
 
@@ -661,15 +704,18 @@ export default function QuestionCollectionPage() {
 
         if (aiFormData.type === "combo") {
           // Handle combo questions
-         if (aiQuestions.coding) {
-  questionsToSave.push(
-    ...aiQuestions.coding.map((q: any) => ({
-      questionType: "coding",
-      question: q.title + "\n\n" + q.description,
-      expectedAnswer: q.solutions?.[preferredLanguage] || Object.values(q.solutions || {})[0] || q.explanation,
-      category: aiFormData.category || "Technical",
-      difficultyLevel: q.difficulty || "medium",
-      collectionId: selectedCollection.id
+          if (aiQuestions.coding) {
+            questionsToSave.push(
+              ...aiQuestions.coding.map((q: any) => ({
+                questionType: "coding",
+                question: q.title + "\n\n" + q.description,
+                expectedAnswer:
+                  q.solutions?.[preferredLanguage] ||
+                  Object.values(q.solutions || {})[0] ||
+                  q.explanation,
+                category: aiFormData.category || "Technical",
+                difficultyLevel: q.difficulty || "medium",
+                collectionId: selectedCollection.id,
               }))
             );
           }
@@ -681,7 +727,8 @@ export default function QuestionCollectionPage() {
                 expectedAnswer: q.purpose,
                 category: aiFormData.category || "Behavioral",
                 difficultyLevel: "medium",
-                collectionId: selectedCollection.id}))
+                collectionId: selectedCollection.id,
+              }))
             );
           }
           if (aiQuestions.mcq) {
@@ -692,7 +739,8 @@ export default function QuestionCollectionPage() {
                 expectedAnswer: q.correctAnswer,
                 category: aiFormData.category || "Mcq",
                 difficultyLevel: q.difficulty || "medium",
-                collectionId: selectedCollection.id}))
+                collectionId: selectedCollection.id,
+              }))
             );
           }
         } else {
@@ -703,12 +751,16 @@ export default function QuestionCollectionPage() {
               aiFormData.type === "coding"
                 ? q.title + "\n\n" + q.description
                 : q.question || q.title,
-            expectedAnswer: aiFormData.type === 'coding'
-              ? q.solution?.[preferredLanguage] || Object.values(q.solution || {})[0] || q.explanation
-              : q.explanation || q.purpose || q.correctAnswer,
+            expectedAnswer:
+              aiFormData.type === "coding"
+                ? q.solution?.[preferredLanguage] ||
+                  Object.values(q.solution || {})[0] ||
+                  q.explanation
+                : q.explanation || q.purpose || q.correctAnswer,
             category: aiFormData.category || "General",
             difficultyLevel: q.difficulty || "medium",
-            collectionId: selectedCollection.id}));
+            collectionId: selectedCollection.id,
+          }));
         }
 
         // Save questions to database
@@ -716,8 +768,10 @@ export default function QuestionCollectionPage() {
           await fetch("/api/content/questions", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"},
-            body: JSON.stringify(questionData)});
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(questionData),
+          });
         }
 
         toast.success(
@@ -744,7 +798,8 @@ export default function QuestionCollectionPage() {
       tags: "",
       isPublic: false,
       isTemplate: false,
-      collectionType: "custom"});
+      collectionType: "custom",
+    });
   };
 
   const resetQuestionForm = () => {
@@ -756,7 +811,8 @@ export default function QuestionCollectionPage() {
       expectedAnswer: "",
       sampleAnswer: "",
       scoringRubric: "",
-      tags: ""});
+      tags: "",
+    });
   };
 
   const openEditDialog = (question: Question) => {
@@ -769,7 +825,8 @@ export default function QuestionCollectionPage() {
       expectedAnswer: question.expectedAnswer || "",
       sampleAnswer: question.sampleAnswer || "",
       scoringRubric: question.scoringRubric || "",
-      tags: question.tags || ""});
+      tags: question.tags || "",
+    });
     setIsQuestionDialogOpen(true);
   };
 
@@ -888,7 +945,8 @@ export default function QuestionCollectionPage() {
                   onValueChange={(value) =>
                     setBankFilters((prev) => ({
                       ...prev,
-                      sortBy: value}))
+                      sortBy: value,
+                    }))
                   }
                 >
                   <SelectTrigger className="w-full my-auto">
@@ -1018,33 +1076,27 @@ export default function QuestionCollectionPage() {
                           <div className="grid grid-cols-3 gap-3">
                             <div className="p-4 rounded-md border border-gray-200 text-center">
                               <p>
-                                {
-                                  questions.filter(
-                                    (q) => q.questionType === "mcq"
-                                  ).length
-                                }
+                                {bank.questionTypes?.find(
+                                  (qt) => qt.type === "mcq"
+                                )?.count || 0}
                               </p>
                               <p className="text-sm">MCQs</p>
                             </div>
 
                             <div className="p-4 rounded-md border border-gray-200 text-center">
                               <p>
-                                {
-                                  questions.filter(
-                                    (q) => q.questionType === "behavioral"
-                                  ).length
-                                }
+                                {bank.questionTypes?.find(
+                                  (qt) => qt.type === "behavioral"
+                                )?.count || 0}
                               </p>
                               <p className="text-sm">Behavioral</p>
                             </div>
 
                             <div className="p-4 rounded-md border border-gray-200 text-center">
                               <p>
-                                {
-                                  questions.filter(
-                                    (q) => q.questionType === "coding"
-                                  ).length
-                                }
+                                {bank.questionTypes?.find(
+                                  (qt) => qt.type === "coding"
+                                )?.count || 0}
                               </p>
                               <p className="text-sm">Coding</p>
                             </div>
@@ -1123,7 +1175,8 @@ export default function QuestionCollectionPage() {
                     onChange={(e) =>
                       setQuestionFilters((prev) => ({
                         ...prev,
-                        search: e.target.value}))
+                        search: e.target.value,
+                      }))
                     }
                     className="pl-10 border-2 border-gray-200 focus:border-blue-400 transition-colors"
                   />
@@ -1134,7 +1187,8 @@ export default function QuestionCollectionPage() {
                     onValueChange={(value) =>
                       setQuestionFilters((prev) => ({
                         ...prev,
-                        questionType: value}))
+                        questionType: value,
+                      }))
                     }
                   >
                     <SelectTrigger className="border-2 border-gray-200 focus:border-blue-400">
@@ -1149,17 +1203,24 @@ export default function QuestionCollectionPage() {
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select>
-                    <SelectTrigger className="border-2 border-gray-200 focus:border-blue-400">
-                      <SelectValue placeholder="Select Difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Questions</SelectItem>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  
+                <Select
+  value={questionFilters.difficulty}
+  onValueChange={(value) =>
+    setQuestionFilters((prev) => ({ ...prev, difficulty: value }))
+  }
+>
+  <SelectTrigger className="border-2 border-gray-200 focus:border-blue-400">
+    <SelectValue placeholder="Select Difficulty" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">All Questions</SelectItem>
+    <SelectItem value="easy"> Easy</SelectItem>
+    <SelectItem value="medium">Medium</SelectItem>
+    <SelectItem value="hard"> Hard</SelectItem>
+  </SelectContent>
+</Select>
+
                 </div>
               </div>
             </div>
@@ -1174,11 +1235,18 @@ export default function QuestionCollectionPage() {
                     </CardTitle>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200">
+                    <div
+                      onClick={() => setIsQuestionDialogOpen(true)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 cursor-pointer"
+                    >
                       <Plus className="h-5 w-5 mr-2" />
+
                       <p>Add Question</p>
                     </div>
-                    <div onClick={() => setIsGenerating(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 text-white border border-gray-200">
+                    <div
+                      onClick={() => setIsGenerating(true)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 text-white border border-gray-200"
+                    >
                       <Sparkles className="h-5 w-5 mr-2" />
                       <p>AI Generate</p>
                     </div>
@@ -1252,7 +1320,7 @@ export default function QuestionCollectionPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {questions.map((question, index) => (
+                            {filteredQuestions.map((question, index) => (
                               <TableRow
                                 key={question.id}
                                 className="hover:bg-blue-50/50 transition-colors group"
@@ -1364,12 +1432,12 @@ export default function QuestionCollectionPage() {
                     </TabsContent>
                     <TabsContent value="cards" className="mt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {questions.map((question, index) => (
-                          <Card
-                            key={question.id}
-                            className="group hover:shadow-lg transition-all duration-200 border-0 shadow-md hover:shadow-blue-500/25"
-                            style={{ animationDelay: `${index * 100}ms` }}
-                          >
+                      {filteredQuestions.map((question, index) => (
+  <Card
+    key={question.id}
+    className="group hover:shadow-lg transition-all duration-200 border-0 shadow-md hover:shadow-blue-500/25"
+    style={{ animationDelay: `${index * 100}ms` }}
+  >
                             <CardHeader className="pb-3">
                               <div className="flex items-start justify-between">
                                 <div className="flex items-center space-x-2">
@@ -1494,7 +1562,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setCollectionFormData((prev) => ({
                       ...prev,
-                      name: e.target.value}))
+                      name: e.target.value,
+                    }))
                   }
                   placeholder="Enter question bank name"
                 />
@@ -1507,7 +1576,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setCollectionFormData((prev) => ({
                       ...prev,
-                      description: e.target.value}))
+                      description: e.target.value,
+                    }))
                   }
                   placeholder="Enter description (optional)"
                 />
@@ -1520,7 +1590,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setCollectionFormData((prev) => ({
                       ...prev,
-                      category: e.target.value}))
+                      category: e.target.value,
+                    }))
                   }
                   placeholder="e.g., Software Engineering, Marketing"
                 />
@@ -1533,7 +1604,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setCollectionFormData((prev) => ({
                       ...prev,
-                      tags: e.target.value}))
+                      tags: e.target.value,
+                    }))
                   }
                   placeholder="Enter tags separated by commas"
                 />
@@ -1584,7 +1656,8 @@ export default function QuestionCollectionPage() {
                     onValueChange={(value) =>
                       setQuestionFormData((prev) => ({
                         ...prev,
-                        questionType: value}))
+                        questionType: value,
+                      }))
                     }
                   >
                     <SelectTrigger className="h-12 border-2 border-slate-200 hover:border-blue-300 focus:border-blue-500 transition-colors">
@@ -1631,7 +1704,8 @@ export default function QuestionCollectionPage() {
                     onValueChange={(value) =>
                       setQuestionFormData((prev) => ({
                         ...prev,
-                        difficultyLevel: value}))
+                        difficultyLevel: value,
+                      }))
                     }
                   >
                     <SelectTrigger className="h-12 border-2 border-slate-200 hover:border-orange-300 focus:border-orange-500 transition-colors">
@@ -1673,7 +1747,8 @@ export default function QuestionCollectionPage() {
                     onChange={(e) =>
                       setQuestionFormData((prev) => ({
                         ...prev,
-                        category: e.target.value}))
+                        category: e.target.value,
+                      }))
                     }
                     placeholder="e.g., JavaScript, Leadership, Algorithms"
                     className="h-12 border-2 border-slate-200 hover:border-purple-300 focus:border-purple-500 transition-colors"
@@ -1695,7 +1770,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setQuestionFormData((prev) => ({
                       ...prev,
-                      question: e.target.value}))
+                      question: e.target.value,
+                    }))
                   }
                   placeholder="Enter your question here... Be clear and specific about what you're asking."
                   rows={5}
@@ -1717,7 +1793,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setQuestionFormData((prev) => ({
                       ...prev,
-                      expectedAnswer: e.target.value}))
+                      expectedAnswer: e.target.value,
+                    }))
                   }
                   placeholder="Provide the expected answer, solution approach, or key points to look for... (Optional)"
                   rows={4}
@@ -1739,7 +1816,8 @@ export default function QuestionCollectionPage() {
                   onChange={(e) =>
                     setQuestionFormData((prev) => ({
                       ...prev,
-                      tags: e.target.value}))
+                      tags: e.target.value,
+                    }))
                   }
                   placeholder="e.g., arrays, sorting, algorithms, problem-solving"
                   className="h-12 border-2 border-slate-200 hover:border-pink-300 focus:border-pink-500 transition-colors"
@@ -1820,7 +1898,8 @@ export default function QuestionCollectionPage() {
                       onChange={(e) =>
                         setAiFormData((prev) => ({
                           ...prev,
-                          count: parseInt(e.target.value) || 1}))
+                          count: parseInt(e.target.value) || 1,
+                        }))
                       }
                     />
                   </div>
@@ -1841,7 +1920,8 @@ export default function QuestionCollectionPage() {
                         onChange={(e) =>
                           setAiFormData((prev) => ({
                             ...prev,
-                            behavioralCount: parseInt(e.target.value) || 1}))
+                            behavioralCount: parseInt(e.target.value) || 1,
+                          }))
                         }
                       />
                     </div>
@@ -1856,7 +1936,8 @@ export default function QuestionCollectionPage() {
                         onChange={(e) =>
                           setAiFormData((prev) => ({
                             ...prev,
-                            codingCount: parseInt(e.target.value) || 1}))
+                            codingCount: parseInt(e.target.value) || 1,
+                          }))
                         }
                       />
                     </div>
@@ -1871,7 +1952,8 @@ export default function QuestionCollectionPage() {
                         onChange={(e) =>
                           setAiFormData((prev) => ({
                             ...prev,
-                            mcqCount: parseInt(e.target.value) || 1}))
+                            mcqCount: parseInt(e.target.value) || 1,
+                          }))
                         }
                       />
                     </div>
@@ -1906,7 +1988,8 @@ export default function QuestionCollectionPage() {
                     onChange={(e) =>
                       setAiFormData((prev) => ({
                         ...prev,
-                        topic: e.target.value}))
+                        topic: e.target.value,
+                      }))
                     }
                     placeholder="e.g., React, Leadership"
                   />
@@ -1954,21 +2037,24 @@ export default function QuestionCollectionPage() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{template.category}</Badge>
                         {template.subCategory && (
-                          <Badge variant="secondary">{template.subCategory}</Badge>
+                          <Badge variant="secondary">
+                            {template.subCategory}
+                          </Badge>
                         )}
                       </div>
                       <div className="text-sm text-gray-600">
                         <div>
-                          Question Types: {(template.questionTypes || []).join(" & ")}
+                          Question Types:{" "}
+                          {(template.questionTypes || []).join(" & ")}
                         </div>
                         <div>
-                          Target Roles: {(template.targetRoles || []).join(" & ")}
+                          Target Roles:{" "}
+                          {(template.targetRoles || []).join(" & ")}
                         </div>
                         <div>Est. Questions: {template.estimatedQuestions}</div>
                       </div>
                     </div>
                   </CardContent>
-
                 </Card>
               ))}
             </div>

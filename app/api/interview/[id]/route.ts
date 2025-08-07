@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
-import { Interview, CodingInterview, campaignInterviews, interviewSetups, jobCampaigns, companies } from '@/lib/database/schema';
+import { Interview, CodingInterview, campaignInterviews, interviewSetups, jobCampaigns, companies, candidateResults, candidateUsers } from '@/lib/database/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyInterviewSession } from '@/lib/auth/redis-session';
 
@@ -65,6 +65,7 @@ export async function GET(
           instructions: 'Complete the interview questions to the best of your ability.',
           questions: questions,
           interviewQuestions: interview.interviewQuestions,
+          candidateEmail: email,
         }
       });
     }
@@ -155,6 +156,7 @@ export async function GET(
           instructions: setup.length > 0 ? setup[0].instructions : 'Complete the interview questions to the best of your ability.',
           questions: questions,
           interviewQuestions: interviewData.length > 0 ? interviewData[0].interviewQuestions : null,
+          candidateEmail: email,
         }
       });
     }
@@ -202,6 +204,7 @@ export async function GET(
           instructions: 'Complete the coding challenges to demonstrate your programming skills.',
           questions: questions,
           interviewQuestions: interview.codingQuestions,
+          candidateEmail: email,
         }
       });
     }
@@ -240,8 +243,6 @@ export async function POST(
     
     const email = session.email;
 
-    // For now, just return success for all actions
-    // In production, you would implement proper action handling
     switch (action) {
       case 'start':
         console.log(`Starting interview ${id} for ${email}`);
@@ -249,7 +250,7 @@ export async function POST(
         
       case 'submit':
         console.log(`Submitting interview ${id} for ${email}`);
-        return NextResponse.json({ success: true });
+        return await handleInterviewSubmission(id, email, body);
         
       case 'save_progress':
         console.log(`Saving progress for interview ${id} for ${email}`);
@@ -263,6 +264,239 @@ export async function POST(
     console.error('Error handling interview action:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Handle interview submission and save to candidateResults
+async function handleInterviewSubmission(interviewId: string, sessionEmail: string, submissionData: any) {
+  try {
+    const { answers, timeSpent, programmingLanguage, questionType, videoRecordingUrl, candidateEmail } = submissionData;
+    
+    // Use candidateEmail from submission data if provided, otherwise use session email
+    const emailToUse = candidateEmail || sessionEmail;
+
+    // Determine interview type from the submission data or fetch from database
+    let interviewType = questionType || 'combo';
+    let totalQuestions = 0;
+    let answeredQuestions = 0;
+    let score = 0;
+    let maxScore = 0;
+
+    // Find the interview to get type and calculate scores
+    const directInterview = await db
+      .select()
+      .from(Interview)
+      .where(eq(Interview.interviewId, interviewId))
+      .limit(1);
+
+    let currentInterview: any = null;
+    if (directInterview.length > 0) {
+      currentInterview = directInterview[0];
+      interviewType = currentInterview.interviewType || 'combo';
+    } else {
+      // Try coding interview table
+      const codingInterview = await db
+        .select()
+        .from(CodingInterview)
+        .where(eq(CodingInterview.interviewId, interviewId))
+        .limit(1);
+      
+      if (codingInterview.length > 0) {
+        currentInterview = codingInterview[0];
+        interviewType = 'coding';
+      }
+    }
+
+    // Get original interview questions to pair with answers
+    let originalQuestions: any[] = [];
+    if (currentInterview) {
+      try {
+        const questionsData = currentInterview.interviewQuestions || currentInterview.codingQuestions;
+        if (questionsData) {
+          originalQuestions = typeof questionsData === 'string' ? JSON.parse(questionsData) : questionsData;
+        }
+      } catch (error) {
+        console.error('Error parsing original interview questions:', error);
+        originalQuestions = [];
+      }
+    }
+
+    // Process answers based on format and pair with original questions
+    let formattedAnswers: any[] = [];
+    if (answers) {
+      if (Array.isArray(answers)) {
+        // Pair answers with original questions
+        formattedAnswers = answers.map((answer: any, index: number) => ({
+          ...answer,
+          question: answer.question || 
+                   (originalQuestions[index]?.question || originalQuestions[index]?.Question || originalQuestions[index]?.problemDescription) ||
+                   `Question ${index + 1}`,
+          questionId: answer.questionId || `q_${index}`,
+          questionIndex: index
+        }));
+      } else if (typeof answers === 'object' && answers.code) {
+        // Coding interview format
+        formattedAnswers = [{
+          question: originalQuestions[0]?.question || originalQuestions[0]?.problemDescription || 'Coding Challenge',
+          userAnswer: answers.code,
+          language: answers.language || programmingLanguage,
+          questionId: answers.questionId || 'coding_1',
+          questionIndex: 0
+        }];
+      } else if (typeof answers === 'object') {
+        // Convert object format to array and pair with questions
+        const sortedKeys = Object.keys(answers).sort((a, b) => parseInt(a) - parseInt(b));
+        formattedAnswers = sortedKeys.map((key, index) => ({
+          questionIndex: parseInt(key) || index,
+          question: originalQuestions[index]?.question || 
+                   originalQuestions[index]?.Question || 
+                   originalQuestions[index]?.problemDescription ||
+                   `Question ${index + 1}`,
+          userAnswer: answers[key],
+          questionId: `q_${key}`,
+          answer: answers[key] // Keep both formats for compatibility
+        }));
+      }
+    }
+
+    totalQuestions = formattedAnswers.length || 1;
+    answeredQuestions = formattedAnswers.filter(a => 
+      a.answer || a.userAnswer || a.code || a.selectedOption
+    ).length;
+    score = answeredQuestions; // Basic scoring - could be improved
+    maxScore = totalQuestions;
+
+    // Get or create candidate user record
+    let candidateUserId: string;
+    const candidateNameFromEmail = emailToUse.split('@')[0];
+    
+    // Try to find existing candidate user
+    const existingCandidate = await db
+      .select({ id: candidateUsers.id })
+      .from(candidateUsers)
+      .where(eq(candidateUsers.email, emailToUse))
+      .limit(1);
+
+    if (existingCandidate.length > 0) {
+      candidateUserId = existingCandidate[0].id;
+    } else {
+      // Create new candidate user if not exists
+              const [newCandidate] = await db
+          .insert(candidateUsers)
+          .values({
+            email: emailToUse,
+            firstName: candidateNameFromEmail,
+            lastName: '',
+            isActive: true,
+            isEmailVerified: false
+          })
+          .returning({ id: candidateUsers.id });
+      
+      candidateUserId = newCandidate.id;
+    }
+
+    // Check if candidate interview history record exists for this specific candidate
+    const existingHistory = await db
+      .select()
+      .from(candidateResults)
+      .where(and(
+        eq(candidateResults.interviewId, interviewId),
+        eq(candidateResults.candidateId, candidateUserId)
+      ))
+      .limit(1);
+
+    const structuredAnswers = {
+      answers: formattedAnswers,
+      submittedAt: new Date().toISOString(),
+      interviewType: interviewType,
+      timeSpent: timeSpent || 0,
+      score: score,
+      maxScore: maxScore,
+      completionRate: totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0,
+      videoRecordingUrl: videoRecordingUrl || null
+    };
+
+    if (existingHistory.length > 0) {
+      // Update existing record for this specific candidate
+      await db
+        .update(candidateResults)
+        .set({
+          status: 'completed',
+          completedAt: new Date(),
+          feedback: JSON.stringify(structuredAnswers),
+          score: score,
+          maxScore: maxScore,
+          duration: Math.round((timeSpent || 0) / 60), // Convert to minutes
+          passed: (answeredQuestions / totalQuestions) >= 0.6,
+          programmingLanguage: programmingLanguage || null,
+          recordingUrl: videoRecordingUrl || null
+        })
+        .where(and(
+          eq(candidateResults.interviewId, interviewId),
+          eq(candidateResults.candidateId, candidateUserId)
+        ));
+    } else {
+      // Create new record if it doesn't exist
+      await db.insert(candidateResults).values({
+        interviewId: interviewId,
+        candidateId: candidateUserId,
+        interviewType: interviewType,
+        status: 'completed',
+        completedAt: new Date(),
+        feedback: JSON.stringify(structuredAnswers),
+        score: score,
+        maxScore: maxScore,
+        duration: Math.round((timeSpent || 0) / 60), // Convert to minutes
+        passed: (answeredQuestions / totalQuestions) >= 0.6,
+        startedAt: new Date(), // Assume started at completion time for now
+        roundNumber: 1,
+        programmingLanguage: programmingLanguage || null,
+        recordingUrl: videoRecordingUrl || null
+      });
+    }
+
+    // Update the original interview status
+    if (currentInterview) {
+      if (interviewType === 'coding') {
+        await db
+          .update(CodingInterview)
+          .set({ 
+            interviewStatus: 'completed',
+            updatedAt: new Date()
+          })
+          .where(eq(CodingInterview.interviewId, interviewId));
+      } else {
+        await db
+          .update(Interview)
+          .set({ 
+            interviewStatus: 'completed',
+            updatedAt: new Date()
+          })
+          .where(eq(Interview.interviewId, interviewId));
+      }
+    }
+
+    console.log(`Successfully saved ${interviewType} interview results for interview ${interviewId}`);
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Interview submitted successfully',
+      data: {
+        interviewId,
+        status: 'completed',
+        totalQuestions,
+        answeredQuestions,
+        score,
+        maxScore
+      }
+    });
+
+  } catch (error) {
+    console.error('Error saving interview submission:', error);
+    return NextResponse.json(
+      { error: 'Failed to save interview submission' },
       { status: 500 }
     );
   }

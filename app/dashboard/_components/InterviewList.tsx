@@ -99,11 +99,8 @@ const InterviewList = () => {
     try {
       setIsLoading(true);
       
-      // Fetch from both endpoints in parallel
-      const [campaignResponse, behavioralResponse] = await Promise.all([
-        fetch('/api/campaigns/interviews'),
-        fetch('/api/interviews')
-      ]);
+      // Fetch from campaign interviews endpoint
+      const campaignResponse = await fetch('/api/campaigns/interviews');
       
       let allInterviews: any[] = [];
       
@@ -134,32 +131,7 @@ const InterviewList = () => {
         }
       }
       
-      // Process behavioral interviews
-      if (behavioralResponse.ok) {
-        const behavioralData = await behavioralResponse.json();
-        if (Array.isArray(behavioralData)) {
-          // Transform behavioral interviews to match the expected format
-          const transformedBehavioral = behavioralData.map((interview: any) => ({
-            id: interview.id || interview.interviewId,
-            interviewId: interview.interviewId,
-            jobPosition: interview.jobPosition || 'Unknown Position',
-            jobDescription: interview.jobDescription || 'No description available',
-            jobExperience: interview.jobExperience || '0',
-            candidateName: interview.candidateName || null,
-            candidateEmail: interview.candidateEmail || null,
-            interviewDate: interview.interviewDate || null,
-            interviewTime: interview.interviewTime || null,
-            interviewStatus: interview.interviewStatus || null,
-            interviewLink: interview.interviewLink || null,
-            linkExpiryTime: interview.linkExpiryTime || null,
-            interviewType: interview.interviewType || 'behavioral',
-            createdBy: session.user.id,
-            createdAt: interview.createdAt || new Date(),
-            fileData: interview.fileData || null
-          }));
-          allInterviews = [...allInterviews, ...transformedBehavioral];
-        }
-      }
+      // All interviews are now coming from campaign endpoint only
       
       // Remove duplicates based on interviewId
       const uniqueInterviews = allInterviews.filter((interview, index, self) => 

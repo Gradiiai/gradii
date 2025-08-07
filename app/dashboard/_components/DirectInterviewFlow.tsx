@@ -158,13 +158,11 @@ const DirectInterviewFlow: React.FC<DirectInterviewFlowProps> = ({
       
       // Fetch from multiple endpoints
      const [
-  generalResponse,
   mcqResponse,
   codingResponse,
   comboResponse,
   behavioralResponse
 ] = await Promise.all([
-  fetch('/api/interviews'),
   fetch('/api/interviews/mcq'),
   fetch('/api/interviews/coding'),
   fetch('/api/interviews/combo'),

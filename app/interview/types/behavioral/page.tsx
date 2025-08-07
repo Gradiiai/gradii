@@ -65,6 +65,7 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
   
   // Get URL parameters
   const email = searchParams.get('email');
+  const interviewId = searchParams.get('interviewId');
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -77,7 +78,6 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [interviewId, setInterviewId] = useState<string | null>(null);
   
   // Media state
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
@@ -149,7 +149,7 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
   useEffect(() => {
     const resolveParams = async () => {
       const resolvedParams = await params;
-      setInterviewId(resolvedParams.id);
+      setInterview({ id: resolvedParams.id } as InterviewData);
     };
     resolveParams();
   }, [params]);
@@ -502,7 +502,8 @@ function BehavioralInterviewContent({ params }: BehavioralInterviewProps) {
 
   const handleSubmitInterview = async () => {
     try {
-      if (!email) {
+      const emailToUse = email || interview?.candidateEmail;
+      if (!emailToUse) {
         setError('Missing email parameter');
         return;
       }

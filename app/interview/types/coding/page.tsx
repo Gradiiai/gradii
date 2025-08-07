@@ -30,7 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/shared/tabs';
 
 interface CodingInterviewProps {
-  params: Promise<{ id: string }>;
+  // No params needed - we get interviewId from search params
 }
 
 interface CodingQuestion {
@@ -51,7 +51,7 @@ interface CodingQuestion {
   supportedLanguages?: string[];
 }
 
-function CodingInterviewContent({ params }: CodingInterviewProps) {
+function CodingInterviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -72,6 +72,9 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showWebcam, setShowWebcam] = useState(false);
+  const [savedAnswers, setSavedAnswers] = useState<Record<number, any>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentQuestionSaved, setCurrentQuestionSaved] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
 
@@ -127,14 +130,11 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
     return templates[lang as keyof typeof templates] || templates['python'];
   };
 
-  // Resolve params on component mount
+  // Get interview ID from URL search params (not route params)
   useEffect(() => {
-    const resolveParams = async () => {
-      const resolvedParams = await params;
-      setInterviewId(resolvedParams.id);
-    };
-    resolveParams();
-  }, [params]);
+    const urlInterviewId = searchParams.get('interviewId');
+    setInterviewId(urlInterviewId);
+  }, [searchParams]);
 
   // Timer functionality
   useEffect(() => {
@@ -159,19 +159,26 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
 
   // Fetch interview data
   useEffect(() => {
-    if (!interviewId || !email) return;
+    if (!interviewId) return;
 
     const fetchInterview = async () => {
       try {
         setLoading(true);
         
-        // Build URL with email parameter
+        // API gets email from session, not URL parameters
         const url = `/api/interview/${interviewId}`;
         
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          credentials: 'include', // Include cookies for session
+        });
         
         if (!response.ok) {
-          throw new Error('Failed to fetch interview');
+          if (response.status === 401) {
+            setError('Session expired. Please verify your email again.');
+            return;
+          }
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch interview: ${response.status}`);
         }
         
         const data = await response.json();
@@ -205,9 +212,6 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
           setAvailableLanguages(detectedLanguages);
           setLanguage(primaryLanguage);
           
-          console.log(`🎯 Auto-detected coding languages:`, detectedLanguages);
-          console.log(`🚀 Primary language set to:`, primaryLanguage);
-          
           // Set initial code from starter code if available
           if (firstQuestion.starterCode) {
             setCode(firstQuestion.starterCode);
@@ -228,19 +232,38 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
     };
 
     fetchInterview();
-  }, [interviewId, email]);
+  }, [interviewId]);
 
-  // Update code when language changes
+  // Update code when language changes or question changes
   useEffect(() => {
     if (questions.length > 0) {
       const currentQuestion = questions[activeQuestionIndex];
-      if (currentQuestion?.starterCode) {
-        setCode(currentQuestion.starterCode);
+      
+      // Check if we have a saved answer for this question
+      const savedAnswer = savedAnswers[activeQuestionIndex];
+      if (savedAnswer) {
+        setCode(savedAnswer.code);
+        setLanguage(savedAnswer.language);
+        setCurrentQuestionSaved(true);
       } else {
-        setCode(getDefaultCode(language, currentQuestion.solution));
+        // Load default code
+        if (currentQuestion?.starterCode) {
+          setCode(currentQuestion.starterCode);
+        } else {
+          setCode(getDefaultCode(language, currentQuestion.solution));
+        }
+        setCurrentQuestionSaved(false);
       }
     }
-  }, [language, activeQuestionIndex, questions]);
+  }, [activeQuestionIndex, questions]);
+
+  // Reset saved status when code changes
+  useEffect(() => {
+    const savedAnswer = savedAnswers[activeQuestionIndex];
+    if (savedAnswer && savedAnswer.code !== code) {
+      setCurrentQuestionSaved(false);
+    }
+  }, [code, activeQuestionIndex, savedAnswers]);
 
 
 
@@ -256,7 +279,7 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
   };
 
   const startInterview = async () => {
-    if (!interviewId || !email) return;
+    if (!interviewId) return;
 
     try {
       const response = await fetch(`/api/interview/${interviewId}`, {
@@ -266,8 +289,7 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          action: 'start',
-          email: email
+          action: 'start'
         }),
       });
 
@@ -315,10 +337,70 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
     }
   };
 
+  const saveCurrentAnswer = async () => {
+    if (!interviewId || !questions[activeQuestionIndex]) return;
+
+    setIsSaving(true);
+    try {
+      const currentQuestion = questions[activeQuestionIndex];
+      const answerData = {
+        questionId: currentQuestion.id,
+        code,
+        language,
+        questionIndex: activeQuestionIndex
+      };
+
+      // Save to local state
+      setSavedAnswers(prev => ({
+        ...prev,
+        [activeQuestionIndex]: answerData
+      }));
+
+      // Save to server
+      const response = await fetch(`/api/interview/${interviewId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'save_progress',
+          questionIndex: activeQuestionIndex,
+          answer: answerData,
+          programmingLanguage: language
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save answer');
+      }
+
+      setCurrentQuestionSaved(true);
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save answer');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSubmitInterview = async () => {
-    if (!interviewId || !email) return;
+    if (!interviewId) return;
 
     try {
+      // Save current answer first if not saved
+      if (!currentQuestionSaved && code.trim()) {
+        await saveCurrentAnswer();
+      }
+
+      // Prepare all answers
+      const allAnswers = Object.values(savedAnswers).map(answer => ({
+        questionId: answer.questionId,
+        questionIndex: answer.questionIndex,
+        code: answer.code,
+        language: answer.language
+      }));
+
       const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
         credentials: 'include',
@@ -327,14 +409,10 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
         },
         body: JSON.stringify({
           action: 'submit',
-          answers: {
-            code,
-            language,
-            questionId: questions[activeQuestionIndex]?.id
-          },
+          answers: allAnswers,
           timeSpent: interview?.duration ? (interview.duration * 60) - timeRemaining : 0,
-          email: email,
-          programmingLanguage: language
+          programmingLanguage: language,
+          questionType: 'coding'
         }),
       });
 
@@ -344,7 +422,7 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
 
       setIsSubmitted(true);
       
-      // Redirect to completion page with email parameter
+      // Redirect to completion page
       router.push(`/interview/complete?interviewId=${interviewId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit interview');
@@ -352,14 +430,48 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
   };
 
   const nextQuestion = () => {
-    if (activeQuestionIndex < questions.length - 1) {
+    if (activeQuestionIndex < questions.length - 1 && currentQuestionSaved) {
       setActiveQuestionIndex(prev => prev + 1);
+      setCurrentQuestionSaved(false); // Reset for next question
+      
+      // Load saved answer for next question if it exists
+      const nextQuestionAnswer = savedAnswers[activeQuestionIndex + 1];
+      if (nextQuestionAnswer) {
+        setCode(nextQuestionAnswer.code);
+        setLanguage(nextQuestionAnswer.language);
+        setCurrentQuestionSaved(true);
+      } else {
+        // Load default code for next question
+        const nextQuestion = questions[activeQuestionIndex + 1];
+        if (nextQuestion?.starterCode) {
+          setCode(nextQuestion.starterCode);
+        } else {
+          setCode(getDefaultCode(language, nextQuestion.solution));
+        }
+      }
     }
   };
 
   const prevQuestion = () => {
     if (activeQuestionIndex > 0) {
       setActiveQuestionIndex(prev => prev - 1);
+      setCurrentQuestionSaved(false); // Reset for previous question
+      
+      // Load saved answer for previous question if it exists
+      const prevQuestionAnswer = savedAnswers[activeQuestionIndex - 1];
+      if (prevQuestionAnswer) {
+        setCode(prevQuestionAnswer.code);
+        setLanguage(prevQuestionAnswer.language);
+        setCurrentQuestionSaved(true);
+      } else {
+        // Load default code for previous question
+        const prevQuestionItem = questions[activeQuestionIndex - 1];
+        if (prevQuestionItem?.starterCode) {
+          setCode(prevQuestionItem.starterCode);
+        } else {
+          setCode(getDefaultCode(language, prevQuestionItem.solution));
+        }
+      }
     }
   };
 
@@ -608,12 +720,19 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
               <Button
                 variant="outline"
                 onClick={nextQuestion}
-                disabled={activeQuestionIndex === questions.length - 1}
+                disabled={activeQuestionIndex === questions.length - 1 || !currentQuestionSaved}
                 className="flex items-center space-x-2"
+                title={!currentQuestionSaved ? "Save your answer first to proceed" : ""}
               >
                 <span>Next</span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
+              
+              {!currentQuestionSaved && (
+                <span className="text-sm text-amber-600 ml-2">
+                  Save your answer to proceed
+                </span>
+              )}
             </div>
             
             <div className="flex items-center space-x-3">
@@ -628,13 +747,34 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
               </Button>
               
               <Button
-                onClick={handleSubmitInterview}
-                disabled={isSubmitted}
-                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+                onClick={saveCurrentAnswer}
+                disabled={isSaving || currentQuestionSaved}
+                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700"
               >
                 <CheckCircle className="h-4 w-4" />
-                <span>Submit</span>
+                <span>{isSaving ? 'Saving...' : currentQuestionSaved ? 'Saved' : 'Save Answer'}</span>
               </Button>
+              
+              {activeQuestionIndex === questions.length - 1 ? (
+                <Button
+                  onClick={handleSubmitInterview}
+                  disabled={isSubmitted || !currentQuestionSaved}
+                  className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+                  title={!currentQuestionSaved ? "Save your answer first to submit" : ""}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Save & Submit</span>
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSubmitInterview}
+                  disabled={isSubmitted}
+                  className="flex items-center space-x-2 bg-gray-600 hover:bg-gray-700"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Submit Early</span>
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -653,7 +793,7 @@ function CodingInterviewContent({ params }: CodingInterviewProps) {
   );
 }
 
-export default function CodingInterviewPage({ params }: CodingInterviewProps) {
+export default function CodingInterviewPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -663,7 +803,7 @@ export default function CodingInterviewPage({ params }: CodingInterviewProps) {
         </div>
       </div>
     }>
-      <CodingInterviewContent params={params} />
+      <CodingInterviewContent />
     </Suspense>
   );
 }

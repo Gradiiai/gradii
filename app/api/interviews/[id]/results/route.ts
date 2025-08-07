@@ -113,7 +113,12 @@ export async function GET(
         } else if (parsed.answers && typeof parsed.answers === 'object') {
           // Object format with numeric keys - convert to array
           const keys = Object.keys(parsed.answers).sort((a, b) => Number(a) - Number(b));
-          detailedAnswers = keys.map(key => parsed.answers[key]);
+          detailedAnswers = keys.map(key => ({
+            ...parsed.answers[key],
+            questionIndex: Number(key),
+            // Preserve the answer in multiple formats for compatibility
+            userAnswer: parsed.answers[key].userAnswer || parsed.answers[key].answer || parsed.answers[key]
+          }));
         } else if (Array.isArray(parsed)) {
           // Direct array format
           detailedAnswers = parsed;
@@ -121,31 +126,101 @@ export async function GET(
           // Handle legacy formats or single answer objects
           const keys = Object.keys(parsed).filter(key => !isNaN(Number(key)));
           if (keys.length > 0) {
-            detailedAnswers = keys.sort((a, b) => Number(a) - Number(b)).map(key => parsed[key]);
+            // Multiple answers stored as object with numeric keys
+            detailedAnswers = keys.sort((a, b) => Number(a) - Number(b)).map(key => ({
+              questionIndex: Number(key),
+              userAnswer: parsed[key],
+              answer: parsed[key] // Keep both formats
+            }));
           } else {
-            console.warn('Unknown feedback structure:', parsed);
-            detailedAnswers = [];
+            // Check for other common structures
+            const possibleAnswerKeys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+            const foundKeys = possibleAnswerKeys.filter(key => parsed.hasOwnProperty(key));
+            
+            if (foundKeys.length > 0) {
+              detailedAnswers = foundKeys.map(key => ({
+                questionIndex: Number(key),
+                userAnswer: parsed[key],
+                answer: parsed[key]
+              }));
+            } else {
+              // Single answer or unknown structure
+              console.log('Feedback structure analysis:', {
+                keys: Object.keys(parsed),
+                hasAnswers: !!parsed.answers,
+                isArray: Array.isArray(parsed),
+                type: typeof parsed
+              });
+              
+              // If it looks like a single answer, treat it as such
+              if (parsed.userAnswer || parsed.answer || parsed.response) {
+                detailedAnswers = [parsed];
+              } else {
+                console.warn('Unknown feedback structure:', parsed);
+                detailedAnswers = [];
+              }
+            }
           }
         }
 
+        // Get original interview questions to supplement missing data
+        let originalQuestions: any[] = [];
+        try {
+          // Try to get questions from the original interview
+          const interviewQuery = await db
+            .select({
+              interviewQuestions: historyRecord.interviewType === 'coding' ? CodingInterview.codingQuestions : Interview.interviewQuestions
+            })
+            .from(historyRecord.interviewType === 'coding' ? CodingInterview : Interview)
+            .where(eq(historyRecord.interviewType === 'coding' ? CodingInterview.interviewId : Interview.interviewId, historyRecord.interviewId))
+            .limit(1);
+          
+          if (interviewQuery.length > 0) {
+            const questionsData = interviewQuery[0].interviewQuestions;
+            if (questionsData) {
+              originalQuestions = typeof questionsData === 'string' ? JSON.parse(questionsData) : questionsData;
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching original interview questions:', error);
+        }
+
         // Normalize answer structure
-        answers = detailedAnswers.map((answer: any, index: number) => ({
-          id: answer.id || (index + 1).toString(),
-          question: answer.question || answer.questionText || answer.problemDescription || `Question ${index + 1}`,
-          userAnswer: answer.userAnswer || answer.selectedOption || answer.answer || answer.response || answer.code || 'No answer provided',
-          correctAnswer: answer.correctAnswer || answer.correctOption || undefined,
-          isCorrect: answer.isCorrect !== undefined ? answer.isCorrect : undefined,
-          rating: answer.rating || answer.score || undefined,
-          feedback: answer.feedback || answer.aiAnalysis || answer.aiExplanation || undefined,
-          language: answer.language || answer.programmingLanguage || programmingLanguage || undefined,
-          type: answer.type || historyRecord.interviewType || 'behavioral',
-          timeSpent: answer.timeSpent || answer.timeTaken || undefined,
-          scoringBreakdown: answer.scoringBreakdown || undefined,
-          maxScore: answer.maxScore || 1,
-          difficulty: answer.difficulty || difficultyLevel || undefined,
-          testCases: answer.testCases || undefined,
-          codeOutput: answer.codeOutput || answer.output || undefined
-        }));
+        answers = detailedAnswers.map((answer: any, index: number) => {
+          // Try to get the question from multiple sources
+          let questionText = answer.question || answer.questionText || answer.problemDescription;
+          
+          // If no question found in answer, try to get from original questions
+          if (!questionText || questionText === 'Question NaN' || questionText.startsWith('Question ')) {
+            if (originalQuestions[index]) {
+              questionText = originalQuestions[index].question || 
+                           originalQuestions[index].Question || 
+                           originalQuestions[index].problemDescription ||
+                           originalQuestions[index].title ||
+                           `Question ${index + 1}`;
+            } else {
+              questionText = `Question ${index + 1}`;
+            }
+          }
+
+          return {
+            id: answer.id || (index + 1).toString(),
+            question: questionText,
+            userAnswer: answer.userAnswer || answer.selectedOption || answer.answer || answer.response || answer.code || 'No answer provided',
+            correctAnswer: answer.correctAnswer || answer.correctOption || undefined,
+            isCorrect: answer.isCorrect !== undefined ? answer.isCorrect : undefined,
+            rating: answer.rating || answer.score || undefined,
+            feedback: answer.feedback || answer.aiAnalysis || answer.aiExplanation || undefined,
+            language: answer.language || answer.programmingLanguage || programmingLanguage || undefined,
+            type: answer.type || historyRecord.interviewType || 'behavioral',
+            timeSpent: answer.timeSpent || answer.timeTaken || undefined,
+            scoringBreakdown: answer.scoringBreakdown || undefined,
+            maxScore: answer.maxScore || 1,
+            difficulty: answer.difficulty || difficultyLevel || undefined,
+            testCases: answer.testCases || undefined,
+            codeOutput: answer.codeOutput || answer.output || undefined
+          };
+        });
         
         console.log(`Processed ${answers.length} detailed answers for interview ${historyRecord.interviewId}`);
       } catch (e) {

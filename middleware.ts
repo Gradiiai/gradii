@@ -57,14 +57,11 @@ const publicRoutes = [
   "/jobs",
 ];
 
-// Interview routes that use candidate access tokens (old system)
-const candidateInterviewRoutes = [
-  "/candidate/interview"
-];
-
-// Candidate dashboard routes that require candidate authentication
-const candidateProtectedRoutes = [
-  "/candidate"
+// Interview routes that require OTP verification
+const interviewProtectedRoutes = [
+  "/interview/lobby",
+  "/interview/photo",
+  "/interview/details"
 ];
 
 export default async function middleware(request: NextRequest) {
@@ -76,36 +73,8 @@ export default async function middleware(request: NextRequest) {
   }
   
   // Check for protected interview routes that require OTP verification
-  if (pathname.startsWith('/interview/lobby') || 
-      pathname.startsWith('/interview/types') || 
-      pathname.startsWith('/interview/complete') ||
-      pathname.startsWith('/api/interview/')) {
-    
-    // Skip verification for the verification APIs themselves and details endpoint
-    if (pathname.includes('/verify-email') || 
-        pathname.includes('/verify-otp') || 
-        pathname.includes('/resend-otp') ||
-        pathname.includes('/details')) {
-      return NextResponse.next();
-    }
-    
-    const session = verifyInterviewSession(request);
-    if (!session) {
-      // Redirect to verification page
-      return NextResponse.redirect(new URL('/interview/verify', request.url));
-    }
-    
-    return NextResponse.next();
-  }
-
-  // Handle candidate interview access - now email-based only
-  if (candidateInterviewRoutes.some(route => pathname.startsWith(route))) {
-    return await handleCandidateEmailAccess(request);
-  }
-
-  // Handle candidate dashboard access
-  if (candidateProtectedRoutes.some(route => pathname.startsWith(route))) {
-    return await handleCandidateDashboardAccess(request);
+  if (interviewProtectedRoutes.some(route => pathname.startsWith(route))) {
+    return await handleInterviewAccess(request);
   }
 
   // Check for session cookies (database sessions are validated by NextAuth adapter)
@@ -138,39 +107,18 @@ export default async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-async function handleCandidateEmailAccess(request: NextRequest) {
-  const { searchParams } = request.nextUrl;
-  
-  // All candidate interview access is now email-based only
-  // No authentication required - just email verification via OTP
-  const email = searchParams.get('email');
-  
-  if (!email) {
+async function handleInterviewAccess(request: NextRequest) {
+  // Check if user has valid interview session
+  const session = verifyInterviewSession(request);
+  if (!session) {
+    // Redirect to verification page
     return NextResponse.redirect(new URL('/interview/verify', request.url));
   }
-
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return NextResponse.redirect(new URL('/interview/verify', request.url));
-  }
-
-  // Add candidate info to headers
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-candidate-email', email);
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  
+  return NextResponse.next();
 }
 
-async function handleCandidateDashboardAccess(request: NextRequest) {
-  // Candidate dashboard access is now email-based only
-  // Redirect to interview verification if trying to access candidate routes
-  return NextResponse.redirect(new URL('/interview/verify', request.url));
-}
+
 
 export const config = {
   matcher: [

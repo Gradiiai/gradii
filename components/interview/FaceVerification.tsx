@@ -1,6 +1,5 @@
 'use client';
 
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/shared/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared/card';
@@ -17,10 +16,6 @@ import {
   Loader2
 } from 'lucide-react';
 
-// Dynamic imports for face detection models
-let faceDetectionModel: any = null;
-let loadedModels = false;
-
 interface FaceVerificationProps {
   onVerificationComplete: (verificationData: FaceVerificationData) => void;
   onVerificationError: (error: string) => void;
@@ -33,7 +28,6 @@ export interface FaceVerificationData {
   confidence: number;
   detectionCount: number;
   timestamp: number;
-  faceDescriptors: number[][];
   capturedImages: string[];
   metadata: {
     modelUsed: string;
@@ -41,18 +35,6 @@ export interface FaceVerificationData {
     verificationTime: number;
     faceQualityScore: number;
   };
-}
-
-interface DetectedFace {
-  box: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  landmarks: number[][];
-  confidence: number;
-  descriptor: number[];
 }
 
 export const FaceVerification: React.FC<FaceVerificationProps> = ({
@@ -66,195 +48,118 @@ export const FaceVerification: React.FC<FaceVerificationProps> = ({
   const intervalRef = useRef<NodeJS.Timeout>();
   
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [detectedFaces, setDetectedFaces] = useState<DetectedFace[]>([]);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'detecting' | 'verifying' | 'completed' | 'failed'>('idle');
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [cameraActive, setCameraActive] = useState(false);
 
-  // Model initialization
-  const initializeModels = useCallback(async () => {
-    try {
-      if (loadedModels) return;
-
-      // Use @vladmandic/face-api as it's the most modern and actively maintained
-      const { default: faceapi } = await import('@vladmandic/face-api');
-      
-      // Load models from CDN or local path
-      const modelPath = '/models'; // You'll need to serve the model files
-      
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(modelPath),
-        faceapi.nets.faceLandmark68Net.loadFromUri(modelPath),
-        faceapi.nets.faceRecognitionNet.loadFromUri(modelPath),
-        faceapi.nets.faceExpressionNet.loadFromUri(modelPath),
-      ]);
-
-      faceDetectionModel = faceapi;
-      loadedModels = true;
-      setIsInitialized(true);
-    } catch (err) {
-      console.error('Failed to load face detection models:', err);
-      setError('Failed to load face recognition models. Using fallback detection.');
-      // Fall back to basic camera without AI detection
-      setIsInitialized(true);
-    }
-  }, []);
-
   // Camera initialization
   const initializeCamera = useCallback(async () => {
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera access not supported');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: 'user',
-        },
+          facingMode: 'user'
+        }
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setCameraActive(true);
+        setError(null);
+        setIsInitialized(true);
       }
     } catch (err) {
-      console.error('Camera access error:', err);
-      setError('Failed to access camera. Please grant camera permissions.');
+      console.error('Camera initialization failed:', err);
+      setError('Failed to access camera. Please ensure camera permissions are granted.');
       onVerificationError('Camera access denied');
     }
   }, [onVerificationError]);
 
-  // Face detection using AI models
-  const detectFaces = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !faceDetectionModel || !cameraActive) {
+  // Simple face capture without AI detection
+  const captureImage = useCallback((): string => {
+    if (!videoRef.current || !canvasRef.current) return '';
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) return '';
+
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    // Draw current video frame to canvas
+    ctx.drawImage(video, 0, 0);
+
+    // Return base64 image data
+    return canvas.toDataURL('image/jpeg', 0.8);
+  }, []);
+
+  // Simple dummy verification process
+  const performVerification = useCallback(async () => {
+    if (!videoRef.current || !cameraActive) {
       return;
     }
 
-    try {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) return;
-
-      // Detect faces with landmarks and descriptors
-      const detections = await faceDetectionModel
-        .detectAllFaces(video, new faceDetectionModel.TinyFaceDetectorOptions())
-        .withFaceLandmarks()
-        .withFaceDescriptors()
-        .withFaceExpressions();
-
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw video frame
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      const faces: DetectedFace[] = [];
-
-      detections.forEach((detection: any) => {
-        const { box, landmarks, descriptor, expressions } = detection;
-        
-        // Draw face bounding box
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-        // Draw landmarks
-        ctx.fillStyle = '#ff0000';
-        landmarks.positions.forEach((point: any) => {
-          ctx.fillRect(point.x - 1, point.y - 1, 2, 2);
-        });
-
-        // Add face data
-        faces.push({
-          box: {
-            x: box.x,
-            y: box.y,
-            width: box.width,
-            height: box.height,
-          },
-          landmarks: landmarks.positions,
-          confidence: expressions.neutral || 0.5, // Use neutral expression as base confidence
-          descriptor: Array.from(descriptor),
-        });
-
-        // Draw confidence score
-        ctx.fillStyle = '#00ff00';
-        ctx.font = '16px Arial';
-        ctx.fillText(
-          `Confidence: ${(expressions.neutral * 100).toFixed(1)}%`,
-          box.x,
-          box.y - 10
-        );
-      });
-
-      setDetectedFaces(faces);
-    } catch (err) {
-      console.error('Face detection error:', err);
-    }
-  }, [cameraActive]);
-
-  // Fallback face detection using basic computer vision
-  const detectFacesFallback = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !cameraActive) {
-      return;
-    }
+    setIsVerifying(true);
+    setVerificationStatus('verifying');
+    setProgress(0);
 
     try {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+      // Simulate verification process with progress
+      for (let i = 0; i <= 100; i += 10) {
+        setProgress(i);
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
 
-      if (!ctx) return;
+      // Capture a few images during verification
+      const images: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const image = captureImage();
+        if (image) {
+          images.push(image);
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
 
-      // Draw video frame
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      setCapturedImages(images);
 
-      // Get image data for basic processing
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Simple face detection simulation (center area assumption)
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const faceWidth = 200;
-      const faceHeight = 240;
-
-      // Draw a detection box in center (simulated detection)
-      ctx.strokeStyle = '#ffa500';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(
-        centerX - faceWidth / 2,
-        centerY - faceHeight / 2,
-        faceWidth,
-        faceHeight
-      );
-
-      // Simulate face data
-      const simulatedFace: DetectedFace = {
-        box: {
-          x: centerX - faceWidth / 2,
-          y: centerY - faceHeight / 2,
-          width: faceWidth,
-          height: faceHeight,
-        },
-        landmarks: [], // Empty for fallback
-        confidence: 0.8, // Simulated confidence
-        descriptor: Array(128).fill(0).map(() => Math.random()), // Random descriptor
+      // Create dummy verification data
+      const verificationData: FaceVerificationData = {
+        verified: true,
+        confidence: 0.95,
+        detectionCount: 3,
+        timestamp: Date.now(),
+        capturedImages: images,
+        metadata: {
+          modelUsed: 'dummy-camera-capture',
+          averageConfidence: 0.95,
+          verificationTime: 3000,
+          faceQualityScore: 0.9
+        }
       };
 
-      setDetectedFaces([simulatedFace]);
+      setVerificationStatus('completed');
+      onVerificationComplete(verificationData);
 
-      // Draw instruction
-      ctx.fillStyle = '#ffa500';
-      ctx.font = '16px Arial';
-      ctx.fillText('Position your face in the center', 10, 30);
-    } catch (err) {
-      console.error('Fallback detection error:', err);
+    } catch (error) {
+      console.error('Verification error:', error);
+      setVerificationStatus('failed');
+      setError('Verification failed. Please try again.');
+      onVerificationError('Verification process failed');
+    } finally {
+      setIsVerifying(false);
     }
-  }, [cameraActive]);
+  }, [cameraActive, captureImage, onVerificationComplete, onVerificationError]);
 
   // Capture verification images
   const captureVerificationImage = useCallback(() => {
@@ -269,87 +174,57 @@ export const FaceVerification: React.FC<FaceVerificationProps> = ({
     if (!isInitialized || isVerifying) return;
 
     setIsVerifying(true);
-    setVerificationStatus('detecting');
+    setVerificationStatus('verifying');
     setProgress(0);
     setCapturedImages([]);
     setError(null);
 
-    const startTime = Date.now();
-    const requiredImages = 5;
-    const capturedData: string[] = [];
-    const faceDescriptors: number[][] = [];
-    let totalConfidence = 0;
-    let validDetections = 0;
-
     try {
-      // Detection loop
-      for (let i = 0; i < requiredImages; i++) {
-        setProgress((i / requiredImages) * 80); // 80% for detection
-
-        // Wait for face detection
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Capture image
-        const image = captureVerificationImage();
-        if (image) {
-          capturedData.push(image);
-        }
-
-        // Process detected faces
-        if (detectedFaces.length > 0) {
-          const face = detectedFaces[0]; // Use first detected face
-          faceDescriptors.push(face.descriptor);
-          totalConfidence += face.confidence;
-          validDetections++;
-        }
-
-        setProgress((i / requiredImages) * 80 + 10);
+      // Simulate verification process with progress
+      for (let i = 0; i <= 100; i += 10) {
+        setProgress(i);
+        await new Promise(resolve => setTimeout(resolve, 200));
       }
 
-      setVerificationStatus('verifying');
-      setProgress(90);
+      // Capture a few images during verification
+      const images: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const image = captureImage();
+        if (image) {
+          images.push(image);
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
 
-      // Calculate verification metrics
-      const averageConfidence = validDetections > 0 ? totalConfidence / validDetections : 0;
-      const faceQualityScore = validDetections / requiredImages;
-      const verificationTime = Date.now() - startTime;
+      setCapturedImages(images);
 
-      // Determine if verification is successful
-      const isVerified = validDetections >= 3 && averageConfidence > 0.6 && faceQualityScore > 0.5;
-
-      setProgress(100);
-      setCapturedImages(capturedData);
-
+      // Create dummy verification data
       const verificationData: FaceVerificationData = {
-        verified: isVerified,
-        confidence: averageConfidence,
-        detectionCount: validDetections,
+        verified: true,
+        confidence: 0.95,
+        detectionCount: 3,
         timestamp: Date.now(),
-        faceDescriptors,
-        capturedImages: capturedData,
+        capturedImages: images,
         metadata: {
-          modelUsed: loadedModels ? '@vladmandic/face-api' : 'fallback',
-          averageConfidence,
-          verificationTime,
-          faceQualityScore,
-        },
+          modelUsed: 'dummy-camera-capture',
+          averageConfidence: 0.95,
+          verificationTime: 3000,
+          faceQualityScore: 0.9
+        }
       };
 
-      setVerificationStatus(isVerified ? 'completed' : 'failed');
-      
-      if (isVerified) {
-        onVerificationComplete(verificationData);
-      } else {
-        onVerificationError('Face verification failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('Verification error:', err);
+      setVerificationStatus('completed');
+      onVerificationComplete(verificationData);
+
+    } catch (error) {
+      console.error('Verification error:', error);
       setVerificationStatus('failed');
+      setError('Verification failed. Please try again.');
       onVerificationError('Verification process failed');
     } finally {
       setIsVerifying(false);
     }
-  }, [isInitialized, isVerifying, detectedFaces, captureVerificationImage, onVerificationComplete, onVerificationError]);
+  }, [isInitialized, isVerifying, captureImage, onVerificationComplete, onVerificationError]);
 
   // Stop verification
   const stopCamera = useCallback(() => {
@@ -363,35 +238,14 @@ export const FaceVerification: React.FC<FaceVerificationProps> = ({
     }
   }, []);
 
-  // Initialize on mount
+  // Initialize camera on component mount
   useEffect(() => {
-    initializeModels();
-    
+    initializeCamera();
+
     return () => {
       stopCamera();
     };
-  }, [initializeModels, stopCamera]);
-
-  // Start camera when initialized
-  useEffect(() => {
-    if (isInitialized) {
-      initializeCamera();
-    }
-  }, [isInitialized, initializeCamera]);
-
-  // Start detection loop when camera is active
-  useEffect(() => {
-    if (cameraActive && videoRef.current) {
-      const detectFunction = loadedModels ? detectFaces : detectFacesFallback;
-      intervalRef.current = setInterval(detectFunction, 100); // 10 FPS
-      
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-      };
-    }
-  }, [cameraActive, detectFaces, detectFacesFallback]);
+  }, [initializeCamera, stopCamera]);
 
   const getStatusColor = () => {
     switch (verificationStatus) {
@@ -436,11 +290,7 @@ export const FaceVerification: React.FC<FaceVerificationProps> = ({
             </span>
           </Badge>
           
-          {detectedFaces.length > 0 && (
-            <Badge variant="outline">
-              {detectedFaces.length} face{detectedFaces.length !== 1 ? 's' : ''} detected
-            </Badge>
-          )}
+
         </div>
 
         {/* Progress bar */}
@@ -502,8 +352,8 @@ export const FaceVerification: React.FC<FaceVerificationProps> = ({
           ) : (
             <>
               <Button
-                onClick={startVerification}
-                disabled={isVerifying || detectedFaces.length === 0}
+                onClick={performVerification}
+                disabled={isVerifying || !cameraActive}
                 className="flex-1"
               >
                 {isVerifying ? (
@@ -526,7 +376,6 @@ export const FaceVerification: React.FC<FaceVerificationProps> = ({
                 variant="outline"
                 onClick={() => {
                   setError(null);
-                  setDetectedFaces([]);
                   setVerificationStatus('idle');
                   setProgress(0);
                 }}

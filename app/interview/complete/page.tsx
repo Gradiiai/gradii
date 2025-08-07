@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   CheckCircle,
-  Home,
   Briefcase,
   Calendar as CalendarIcon,
   Loader2,
@@ -27,6 +26,14 @@ interface Interview {
   interviewType: string;
   timeSpent: number;
   totalQuestions: number;
+  answeredQuestions: number;
+  score: number;
+  maxScore: number;
+  passed: boolean;
+  programmingLanguage?: string;
+  candidateName: string;
+  candidateEmail: string;
+  status: string;
 }
 
 function InterviewCompleteContent() {
@@ -48,9 +55,9 @@ function InterviewCompleteContent() {
           throw new Error('Missing interview ID parameter');
         }
 
-        // Build API URL
+        // Build API URL for completed interview data
         const response = await fetch(
-          `/api/interview/${interviewId}`
+          `/api/interview/complete/${interviewId}`
         );
 
         if (!response.ok) {
@@ -177,7 +184,36 @@ function InterviewCompleteContent() {
               {interview?.totalQuestions && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-600">Questions Answered</span>
-                  <span className="font-medium">{interview.totalQuestions}</span>
+                  <span className="font-medium">
+                    {interview.answeredQuestions || interview.totalQuestions} of {interview.totalQuestions}
+                  </span>
+                </div>
+              )}
+              {interview?.score !== undefined && interview?.maxScore !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Score</span>
+                  <span className="font-medium">
+                    {interview.score} / {interview.maxScore}
+                    {interview.maxScore > 0 && (
+                      <span className="text-sm text-gray-500 ml-1">
+                        ({Math.round((interview.score / interview.maxScore) * 100)}%)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {interview?.programmingLanguage && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Programming Language</span>
+                  <span className="font-medium">{interview.programmingLanguage}</span>
+                </div>
+              )}
+              {interview?.passed !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Status</span>
+                  <span className={`font-medium ${interview.passed ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {interview.passed ? 'Passed' : 'Under Review'}
+                  </span>
                 </div>
               )}
             </div>
@@ -217,18 +253,10 @@ function InterviewCompleteContent() {
         </Card>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <Button
-            onClick={() => router.push('/candidate')}
-            className="flex items-center justify-center flex-1"
-          >
-            <Home className="h-4 w-4 mr-2" />
-            Return to Dashboard
-          </Button>
+        <div className="flex justify-center">
           <Button
             onClick={() => router.push('/jobs')}
-            variant="outline"
-            className="flex items-center justify-center flex-1"
+            className="flex items-center justify-center px-8 py-3"
           >
             <Briefcase className="h-4 w-4 mr-2" />
             Browse More Jobs

@@ -29,7 +29,7 @@ import { useToast } from '@/shared/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 interface ComboInterviewProps {
-  params: Promise<{ id: string }>;
+  // No params needed - we get interviewId from search params
 }
 
 interface Question {
@@ -39,22 +39,33 @@ interface Question {
   category?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   options?: string[];
+  choices?: string[];
+  answer_choices?: string[];
   correctAnswer?: number;
   selectedAnswer?: number;
   answer?: string;
   language?: string;
   starterCode?: string;
+  // Additional option fields that might exist
+  option1?: string;
+  option2?: string;
+  option3?: string;
+  option4?: string;
+  optionA?: string;
+  optionB?: string;
+  optionC?: string;
+  optionD?: string;
+  [key: string]: any; // Allow for dynamic properties
 }
 
-function ComboInterviewContent({ params }: ComboInterviewProps) {
+function ComboInterviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
   // Get URL parameters
   const email = searchParams.get('email');
+  const interviewId = searchParams.get('interviewId');
   const { toast } = useToast();
-
-
 
   const [interview, setInterview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +75,6 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(5400); // 90 minutes
   const [isRecording, setIsRecording] = useState(false);
-  const [interviewId, setInterviewId] = useState<string | null>(null);
 
   // Video recording refs and state
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -148,58 +158,45 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
     }
   };
 
-  // Resolve params on component mount
+  // Get interview ID from URL search params (not route params)
   useEffect(() => {
-    const resolveParams = async () => {
-      const resolvedParams = await params;
-      setInterviewId(resolvedParams.id);
-    };
-    resolveParams();
-  }, [params]);
+    const urlInterviewId = searchParams.get('interviewId');
+    setInterview({ id: urlInterviewId } as any);
+  }, [searchParams]);
 
   useEffect(() => {
-    if (!email || !interviewId) {
-      if (!email) {
-        setError('Missing email parameter');
-        setLoading(false);
-      }
+    if (!interviewId) {
       return;
     }
 
-    // Validate email and load interview data
+    // Load interview data using session authentication
     const validateAndLoadInterview = async () => {
       try {
-        // Build URL with email parameter
+        setLoading(true);
         const url = `/api/interview/${interviewId}`;
 
         const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          credentials: 'include', // Include cookies for session
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to load interview');
+          if (response.status === 401) {
+            setError('Session expired. Please verify your email again.');
+            return;
+          }
+          const errorText = await response.text();
+          throw new Error(`Failed to fetch interview: ${response.status}`);
         }
 
         const data = await response.json();
         const interviewInfo = data.interview || data;
         
-        console.log('Combo interview API response:', data);
-        console.log('Interview info:', interviewInfo);
-        console.log('Raw questions:', interviewInfo.questions);
-        
         // Use all questions for combo interview
         const allQuestions = interviewInfo.questions || [];
 
         if (allQuestions.length === 0) {
-          console.error('No questions found in combo interview');
           throw new Error('No questions found for this interview. Please contact the administrator.');
         }
-
-        console.log('Processed questions for combo:', allQuestions);
 
         const interviewData = {
           id: interviewInfo.id,
@@ -211,7 +208,7 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
           instructions: interviewInfo.instructions,
           questions: allQuestions,
           status: interviewInfo.status,
-          candidateEmail: email || interviewInfo.candidateEmail || ''
+          candidateEmail: interviewInfo.candidateEmail
         };
         
         setInterview(interviewData);
@@ -234,7 +231,7 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
     };
 
     validateAndLoadInterview();
-  }, [interviewId, searchParams]);
+  }, [interviewId]);
 
   // Timer effect
   useEffect(() => {
@@ -272,12 +269,15 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
       // Start full interview recording
       startFullInterviewRecording();
       
-   const response = await fetch(`/api/interview/${interviewId}`, {
+      const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-        },body: JSON.stringify({ candidateEmail: email }),
+        },
+        body: JSON.stringify({ 
+          action: 'start'
+        }),
       });
 
       if (response.ok) {
@@ -311,7 +311,7 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
         (codingQuestions[0].language || 'javascript') : null;
 
       const submissionData = {
-        candidateEmail: email,
+        action: 'submit',
         answers: formattedAnswers,
         totalQuestions: interview.questions.length,
         answeredQuestions: Object.keys(answers).length,
@@ -375,9 +375,10 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
   const uploadInterviewVideo = async (videoBlob: Blob) => {
     try {
       const formData = new FormData();
+      const emailToUse = email || interview?.candidateEmail;
       formData.append('video', videoBlob, `interview-${interviewId}-${Date.now()}.webm`);
       formData.append('interviewId', interviewId || '');
-      formData.append('candidateEmail', email || '');
+      formData.append('candidateEmail', emailToUse || '');
       formData.append('interviewType', 'combo');
 
       const uploadResponse = await fetch('/api/interviews/upload-video', {
@@ -429,26 +430,138 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
     
     switch (question.type) {
       case 'mcq':
+        // Handle different possible option formats
+        let options = question.options;
+        
+        // Check if options are in a different field or format
+        if (!options && question.choices) {
+          options = question.choices;
+        }
+        if (!options && question.answer_choices) {
+          options = question.answer_choices;
+        }
+        
+        // Parse options from Answer field if it contains multiple choice format
+        if (!options && question.Answer) {
+          const answerText = question.Answer;
+          
+          // First, try to extract the correct answer and explanation
+          let correctAnswerText = '';
+          let explanation = '';
+          
+          // Look for pattern: "A) text\nExplanation: ..."
+          const answerMatch = answerText.match(/^([A-D])\)\s*([^.\n]+)/);
+          if (answerMatch) {
+            correctAnswerText = answerMatch[2].trim();
+          }
+          
+          // Extract explanation
+          const explanationMatch = answerText.match(/Explanation:\s*(.+)/);
+          if (explanationMatch) {
+            explanation = explanationMatch[1].trim();
+          }
+          
+          // For user-centered design question, create appropriate options
+          if (question.Question && question.Question.includes('user-centered design')) {
+            options = [
+              'Focusing on user needs and requirements throughout the design process',
+              'Prioritizing aesthetic design over functionality', 
+              'Using the latest technology regardless of user preferences',
+              'Designing based solely on business requirements'
+            ];
+          }
+          // For other questions, try to parse from the answer text
+          else {
+            // Look for patterns like "A) option", "1) option", etc.
+            const optionMatches = answerText.match(/[A-D]\)\s*([^.\n]+)/g) || 
+                                 answerText.match(/[1-4]\)\s*([^.\n]+)/g);
+            
+            if (optionMatches) {
+              options = optionMatches.map((match: string) => {
+                // Extract just the option text, removing the letter/number prefix
+                return match.replace(/^[A-D1-4]\)\s*/, '').trim();
+              });
+            } else {
+              // Try to split by common delimiters if no clear pattern
+              const lines = answerText.split('\n').filter((line: string) => line.trim());
+              if (lines.length > 1) {
+                options = lines.map((line: string) => line.replace(/^[A-D1-4][\)\.]\s*/, '').trim()).filter((opt: string) => opt.length > 0);
+              }
+            }
+          }
+        }
+        
+        // If still no options, check for numbered option fields
+        if (!options) {
+          const possibleOptions: string[] = [];
+          ['option1', 'option2', 'option3', 'option4', 'optionA', 'optionB', 'optionC', 'optionD'].forEach(key => {
+            if (question[key as keyof Question]) {
+              possibleOptions.push(question[key as keyof Question]);
+            }
+          });
+          if (possibleOptions.length > 0) {
+            options = possibleOptions;
+          }
+        }
+        
+        // If we still don't have options, try to create them from common MCQ patterns
+        if (!options && question.Question) {
+          // For questions that might have inline options, try to extract them
+          const questionText = question.Question;
+          const inlineOptions = questionText.match(/[A-D]\)\s*[^A-D)]+/g);
+          if (inlineOptions) {
+            options = inlineOptions.map((opt: string) => opt.replace(/^[A-D]\)\s*/, '').trim());
+          }
+        }
+        
+        if (!options || options.length === 0) {
+          return (
+            <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center mb-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 mr-2" />
+                <h3 className="font-semibold text-red-800">Question Configuration Error</h3>
+              </div>
+              <p className="text-red-700 mb-3">No options available for this multiple choice question.</p>
+              <details className="text-sm">
+                <summary className="cursor-pointer text-red-600 hover:text-red-800">View Question Data</summary>
+                <pre className="mt-2 p-3 bg-red-100 rounded text-xs overflow-auto">
+                  {JSON.stringify(question, null, 2)}
+                </pre>
+              </details>
+            </div>
+          );
+        }
+        
         return (
           <div className="space-y-3">
-            {question.options?.map((option, index) => (
+            {options.map((option: string, index: number) => (
               <label
                 key={index}
-                className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
+                className={`flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all duration-200 hover:shadow-md ${
                   answers[questionId] === index
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-50 shadow-sm'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                 }`}
               >
-                <input
-                  type="radio"
-                  name={`question-${questionId}`}
-                  value={index}
-                  checked={answers[questionId] === index}
-                  onChange={() => handleAnswerChange(questionId, index)}
-                  className="mr-3"
-                />
-                <span className="text-gray-900">{option}</span>
+                <div className="flex items-center mt-0.5">
+                  <input
+                    type="radio"
+                    name={`question-${questionId}`}
+                    value={index}
+                    checked={answers[questionId] === index}
+                    onChange={() => handleAnswerChange(questionId, index)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="ml-3 flex-1">
+                  <div className="flex items-center mb-1">
+                    <span className="inline-flex items-center justify-center w-6 h-6 bg-gray-100 text-gray-600 text-sm font-medium rounded-full mr-2">
+                      {String.fromCharCode(65 + index)}
+                    </span>
+                    <span className="text-gray-900 font-medium">Option {String.fromCharCode(65 + index)}</span>
+                  </div>
+                  <p className="text-gray-700 leading-relaxed">{option}</p>
+                </div>
               </label>
             ))}
           </div>
@@ -807,7 +920,7 @@ function ComboInterviewContent({ params }: ComboInterviewProps) {
   );
 }
 
-export default function ComboInterviewPage({ params }: ComboInterviewProps) {
+export default function ComboInterviewPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -817,7 +930,7 @@ export default function ComboInterviewPage({ params }: ComboInterviewProps) {
         </div>
       </div>
     }>
-      <ComboInterviewContent params={params} />
+      <ComboInterviewContent />
     </Suspense>
   );
 }

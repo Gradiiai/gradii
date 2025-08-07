@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/database/connection";
-import { Interview, CodingInterview, InterviewAnalytics, candidateResults } from "@/lib/database/schema";
+import { Interview, CodingInterview, InterviewAnalytics, candidateResults, candidateUsers } from "@/lib/database/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
@@ -187,15 +187,52 @@ export async function POST(
         completionRate: completionRate
       };
 
-      // Check if candidate interview history record exists
+      // Get or create candidate user record
+      let candidateUserId: string;
+      const candidateEmailToUse = candidateEmail || updatedInterview.candidateEmail || 'unknown@example.com';
+      const candidateNameToUse = candidateName || updatedInterview.candidateName || 'Unknown Candidate';
+      
+      // Try to find existing candidate user
+      const existingCandidate = await db
+        .select({ id: candidateUsers.id })
+        .from(candidateUsers)
+        .where(eq(candidateUsers.email, candidateEmailToUse))
+        .limit(1);
+
+      if (existingCandidate.length > 0) {
+        candidateUserId = existingCandidate[0].id;
+      } else {
+        // Create new candidate user if not exists
+        const nameParts = candidateNameToUse.split(' ');
+        const firstName = nameParts[0] || 'Unknown';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        const [newCandidate] = await db
+          .insert(candidateUsers)
+          .values({
+            email: candidateEmailToUse,
+            firstName: firstName,
+            lastName: lastName,
+            isActive: true,
+            isEmailVerified: false
+          })
+          .returning({ id: candidateUsers.id });
+        
+        candidateUserId = newCandidate.id;
+      }
+
+      // Check if candidate interview history record exists for this specific candidate
       const existingHistory = await db
         .select()
         .from(candidateResults)
-        .where(eq(candidateResults.interviewId, id))
+        .where(and(
+          eq(candidateResults.interviewId, id),
+          eq(candidateResults.candidateId, candidateUserId)
+        ))
         .limit(1);
 
       if (existingHistory.length > 0) {
-        // Update existing record
+        // Update existing record for this specific candidate
         await db
           .update(candidateResults)
           .set({
@@ -207,12 +244,15 @@ export async function POST(
             duration: totalTimeSpent || 0,
             passed: completionRate >= 60
           })
-          .where(eq(candidateResults.interviewId, id));
+          .where(and(
+            eq(candidateResults.interviewId, id),
+            eq(candidateResults.candidateId, candidateUserId)
+          ));
       } else {
         // Create new record if it doesn't exist
         await db.insert(candidateResults).values({
           interviewId: id,
-          candidateId: candidateEmail || 'unknown', // Use email as fallback ID
+          candidateId: candidateUserId,
           interviewType: interviewType,
           status: 'completed',
           completedAt: new Date(),
@@ -229,6 +269,7 @@ export async function POST(
       console.log(`Saved interview results to candidate history for interview ${id}`);
     } catch (historyError) {
       console.error('Error saving to candidate interview history:', historyError);
+      console.error('History error details:', historyError);
       // Continue execution even if history saving fails
     }
 

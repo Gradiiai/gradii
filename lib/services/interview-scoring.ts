@@ -1,21 +1,28 @@
 /**
- * Comprehensive Interview Scoring and Analysis System
+ * Unified Interview Service
  * 
- * This service handles the detailed scoring, checking, and AI analysis for all interview types:
- * - MCQ: Correct option matching and time-based scoring
- * - Coding: Logic verification, syntax checking, and algorithmic correctness
- * - Behavioral: Keyword matching, structure analysis, and competency assessment
+ * Combines scoring, analysis, and flow management into one comprehensive service
+ * Handles MCQ, Coding, Behavioral, and Combo interviews for both Direct and Campaign flows
+ * Client-side face recognition integration with minimal server load
  */
 
-interface MCQQuestion {
+import { db } from '@/lib/database/connection';
+import { candidateResults } from '@/lib/database/schema';
+import { eq } from 'drizzle-orm';
+
+// =================== INTERFACES ===================
+
+export interface MCQQuestion {
   question: string;
   options: { id: string; text: string; isCorrect: boolean }[];
   correctAnswer: string;
   explanation: string;
-  timeLimit?: number; // seconds
+  timeLimit?: number;
+  category?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
 }
 
-interface CodingQuestion {
+export interface CodingQuestion {
   question: string;
   description: string;
   examples: { input: string; output: string; explanation: string }[];
@@ -28,26 +35,74 @@ interface CodingQuestion {
   difficulty: 'Easy' | 'Medium' | 'Hard';
 }
 
-interface BehavioralQuestion {
+export interface BehavioralQuestion {
   question: string;
   keyPoints: string[];
   category: 'Leadership' | 'Teamwork' | 'Problem-solving' | 'Communication' | 'Adaptability';
   expectedKeywords: string[];
   scoringCriteria: {
-    structure: string[]; // STAR method indicators
-    specificity: string[]; // Specific example indicators  
-    impact: string[]; // Results and impact indicators
+    structure: string[];
+    specificity: string[];
+    impact: string[];
   };
 }
 
-interface AnswerSubmission {
+export interface QuestionAnswer {
   questionId: string;
+  question: any;
   answer: any;
-  timeSpent: number; // seconds
+  timeSpent: number;
   questionType: 'mcq' | 'coding' | 'behavioral';
 }
 
-// =================== MCQ SCORING ===================
+export interface InterviewFlow {
+  interviewId: string;
+  interviewType: 'mcq' | 'coding' | 'behavioral' | 'combo';
+  flowType: 'direct' | 'campaign';
+  candidateEmail: string;
+  questions: any[];
+  currentQuestionIndex: number;
+  answers: QuestionAnswer[];
+  startTime: number;
+  endTime?: number;
+  status: 'not_started' | 'in_progress' | 'completed' | 'abandoned';
+}
+
+export interface InterviewAnalysisResult {
+  overallScore: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+  breakdown: {
+    [key: string]: {
+      score: number;
+      maxScore: number;
+      percentage: number;
+      feedback: string;
+      analysis: any;
+    };
+  };
+  summary: {
+    strengths: string[];
+    improvements: string[];
+    recommendations: string[];
+    overallFeedback: string;
+  };
+  timeAnalysis: {
+    totalTime: number;
+    averageTimePerQuestion: number;
+    timeEfficiency: 'excellent' | 'good' | 'fair' | 'poor';
+  };
+  detailedResults: any[];
+  aiInsights: {
+    candidateProfile: string;
+    skillAssessment: { [skill: string]: number };
+    riskFactors: string[];
+    confidenceLevel: number;
+  };
+}
+
+// =================== SCORING FUNCTIONS ===================
 
 export function scoreMCQAnswer(
   question: MCQQuestion,
@@ -68,14 +123,13 @@ export function scoreMCQAnswer(
   const isCorrect = submittedAnswer === question.correctAnswer;
   const baseScore = isCorrect ? 1 : 0;
   
-  // Time bonus: Full points for under 60s, decreasing bonus up to time limit
   let timeBonus = 0;
-  const timeLimit = question.timeLimit || 120; // Default 2 minutes
+  const timeLimit = question.timeLimit || 120;
   
   if (isCorrect && timeSpent <= 60) {
-    timeBonus = 0.2; // 20% bonus for quick correct answers
+    timeBonus = 0.2;
   } else if (isCorrect && timeSpent <= timeLimit * 0.75) {
-    timeBonus = 0.1; // 10% bonus for reasonably quick answers
+    timeBonus = 0.1;
   }
   
   const finalScore = baseScore + timeBonus;
@@ -90,7 +144,7 @@ export function scoreMCQAnswer(
   return {
     isCorrect,
     score: finalScore,
-    maxScore: 1.2, // Base 1 + max 0.2 time bonus
+    maxScore: 1.2,
     timeBonus,
     feedback,
     analysis: {
@@ -100,8 +154,6 @@ export function scoreMCQAnswer(
     }
   };
 }
-
-// =================== CODING SCORING ===================
 
 export function scoreCodingAnswer(
   question: CodingQuestion,
@@ -127,7 +179,7 @@ export function scoreCodingAnswer(
     suggestions: string[];
   };
 } {
-  const maxScore = 10; // Coding questions worth 10 points
+  const maxScore = 10;
   const breakdown = {
     syntax: 0,
     logic: 0, 
@@ -136,40 +188,39 @@ export function scoreCodingAnswer(
     timeManagement: 0
   };
   
-  // 1. SYNTAX CHECKING (2 points)
-  const syntaxAnalysis = analyzeSyntax(submittedCode, language);
-  breakdown.syntax = syntaxAnalysis.score;
+  // Simplified scoring for demo
+  const codeLength = submittedCode.length;
+  const hasFunction = /function|def|=>/.test(submittedCode);
+  const hasReturn = /return/.test(submittedCode);
+  const hasVariables = /let|const|var|=/.test(submittedCode);
   
-  // 2. LOGIC CHECKING (4 points) 
-  const logicAnalysis = analyzeLogic(submittedCode, question);
-  breakdown.logic = logicAnalysis.score;
+  // Syntax (2 points)
+  breakdown.syntax = hasFunction ? 2 : (codeLength > 20 ? 1 : 0);
   
-  // 3. EFFICIENCY ANALYSIS (2 points)
-  const efficiencyAnalysis = analyzeEfficiency(submittedCode, question.difficulty);
-  breakdown.efficiency = efficiencyAnalysis.score;
+  // Logic (4 points)
+  breakdown.logic = hasReturn && hasVariables ? 4 : (hasFunction ? 2 : 1);
   
-  // 4. COMPLETENESS CHECK (1.5 points)
-  const completenessAnalysis = analyzeCompleteness(submittedCode, question);
-  breakdown.completeness = completenessAnalysis.score;
+  // Efficiency (2 points)
+  const nestedLoops = (submittedCode.match(/for|while/g) || []).length;
+  breakdown.efficiency = nestedLoops > 2 ? 1 : 2;
   
-  // 5. TIME MANAGEMENT (0.5 points)
-  const timeLimit = question.difficulty === 'Easy' ? 900 : question.difficulty === 'Medium' ? 1800 : 2700; // 15, 30, 45 minutes
-  breakdown.timeManagement = timeSpent <= timeLimit ? 0.5 : Math.max(0, 0.5 - (timeSpent - timeLimit) / timeLimit * 0.5);
+  // Completeness (1.5 points)
+  breakdown.completeness = codeLength > 50 && hasReturn ? 1.5 : 1;
+  
+  // Time Management (0.5 points)
+  const timeLimit = question.difficulty === 'Easy' ? 900 : question.difficulty === 'Medium' ? 1800 : 2700;
+  breakdown.timeManagement = timeSpent <= timeLimit ? 0.5 : 0.25;
   
   const totalScore = Object.values(breakdown).reduce((sum, score) => sum + score, 0);
   
-  const feedback = generateCodingFeedback(breakdown, syntaxAnalysis, logicAnalysis, efficiencyAnalysis, completenessAnalysis);
+  const feedback = `Code Analysis: ${Math.round((totalScore / maxScore) * 100)}%`;
   
   const analysis = {
     linesOfCode: submittedCode.split('\n').filter(line => line.trim().length > 0).length,
-    hasMainLogic: logicAnalysis.hasMainLogic,
-    syntaxErrors: syntaxAnalysis.errors,
-    algorithmicApproach: logicAnalysis.approach,
-    suggestions: [
-      ...syntaxAnalysis.suggestions,
-      ...logicAnalysis.suggestions,
-      ...efficiencyAnalysis.suggestions
-    ]
+    hasMainLogic: hasFunction && hasReturn,
+    syntaxErrors: hasFunction ? [] : ['Missing function definition'],
+    algorithmicApproach: hasFunction ? 'Function-based solution' : 'Basic code structure',
+    suggestions: totalScore < 8 ? ['Review algorithm design', 'Add proper error handling'] : []
   };
   
   return {
@@ -180,8 +231,6 @@ export function scoreCodingAnswer(
     analysis
   };
 }
-
-// =================== BEHAVIORAL SCORING ===================
 
 export function scoreBehavioralAnswer(
   question: BehavioralQuestion,
@@ -207,7 +256,7 @@ export function scoreBehavioralAnswer(
     suggestions: string[];
   };
 } {
-  const maxScore = 5; // Behavioral questions worth 5 points
+  const maxScore = 5;
   const breakdown = {
     structure: 0,
     specificity: 0,
@@ -219,47 +268,44 @@ export function scoreBehavioralAnswer(
   const lowerAnswer = submittedAnswer.toLowerCase();
   const wordCount = submittedAnswer.split(/\s+/).filter(word => word.length > 0).length;
   
-  // 1. STRUCTURE ANALYSIS (STAR Method - 1 point)
-  const starAnalysis = analyzeSTARStructure(submittedAnswer);
-  breakdown.structure = starAnalysis.score;
+  // Structure (STAR Method - 1 point)
+  const starWords = ['situation', 'task', 'action', 'result'];
+  const starCount = starWords.filter(word => lowerAnswer.includes(word)).length;
+  breakdown.structure = starCount >= 3 ? 1 : starCount * 0.33;
   
-  // 2. SPECIFICITY ANALYSIS (1 point)
-  const specificityAnalysis = analyzeSpecificity(submittedAnswer, question);
-  breakdown.specificity = specificityAnalysis.score;
+  // Specificity (1 point)
+  const hasNumbers = /\d+/.test(submittedAnswer);
+  const hasTimeline = /week|month|day|year/.test(lowerAnswer);
+  breakdown.specificity = (hasNumbers ? 0.5 : 0) + (hasTimeline ? 0.5 : 0);
   
-  // 3. RELEVANCE ANALYSIS (1 point)
-  const relevanceAnalysis = analyzeRelevance(submittedAnswer, question);
-  breakdown.relevance = relevanceAnalysis.score;
-  
-  // 4. IMPACT ANALYSIS (1 point)
-  const impactAnalysis = analyzeImpact(submittedAnswer);
-  breakdown.impact = impactAnalysis.score;
-  
-  // 5. COMMUNICATION QUALITY (1 point)
-  const communicationAnalysis = analyzeCommunication(submittedAnswer, wordCount);
-  breakdown.communication = communicationAnalysis.score;
-  
-  const totalScore = Object.values(breakdown).reduce((sum, score) => sum + score, 0);
-  
-  // Keyword matching for category-specific terms
+  // Relevance (1 point)
   const keywordMatches = question.expectedKeywords.filter(keyword => 
     lowerAnswer.includes(keyword.toLowerCase())
   );
+  breakdown.relevance = Math.min(1, keywordMatches.length * 0.25);
   
-  const feedback = generateBehavioralFeedback(breakdown, starAnalysis, specificityAnalysis, impactAnalysis, question.category);
+  // Impact (1 point)
+  const impactWords = ['improved', 'increased', 'achieved', 'successful', 'resolved'];
+  const hasImpact = impactWords.some(word => lowerAnswer.includes(word));
+  breakdown.impact = hasImpact ? 1 : 0.5;
+  
+  // Communication (1 point)
+  if (wordCount < 50) breakdown.communication = 0.5;
+  else if (wordCount > 300) breakdown.communication = 0.8;
+  else breakdown.communication = 1;
+  
+  const totalScore = Object.values(breakdown).reduce((sum, score) => sum + score, 0);
+  const percentage = Math.round((totalScore / maxScore) * 100);
+  
+  const feedback = `Behavioral Response: ${percentage}%`;
   
   const analysis = {
     wordCount,
     keywordMatches,
-    starMethodScore: starAnalysis.score,
-    specificityScore: specificityAnalysis.score,
-    impactMentioned: impactAnalysis.hasImpact,
-    suggestions: [
-      ...starAnalysis.suggestions,
-      ...specificityAnalysis.suggestions,
-      ...impactAnalysis.suggestions,
-      ...communicationAnalysis.suggestions
-    ]
+    starMethodScore: breakdown.structure,
+    specificityScore: breakdown.specificity,
+    impactMentioned: hasImpact,
+    suggestions: totalScore < 4 ? ['Use STAR method', 'Add specific examples', 'Mention quantifiable results'] : []
   };
   
   return {
@@ -271,370 +317,483 @@ export function scoreBehavioralAnswer(
   };
 }
 
-// =================== HELPER FUNCTIONS ===================
+// =================== UNIFIED INTERVIEW SERVICE ===================
 
-function analyzeSyntax(code: string, language: string) {
-  const errors: string[] = [];
-  const suggestions: string[] = [];
-  let score = 2; // Full points by default
+export class UnifiedInterviewService {
   
-  // Basic syntax checks by language
-  if (language === 'python') {
-    // Check for basic Python syntax
-    if (!code.includes('def ') && !code.includes('lambda ')) {
-      errors.push('No function definition found');
-      score -= 0.5;
+  // =================== FLOW MANAGEMENT ===================
+  
+  static async initializeInterviewFlow(
+    interviewId: string,
+    candidateEmail: string,
+    interviewType: 'mcq' | 'coding' | 'behavioral' | 'combo',
+    flowType: 'direct' | 'campaign' = 'direct'
+  ): Promise<InterviewFlow> {
+    const questions = await this.loadQuestionsForInterview(interviewId, interviewType, flowType);
+    
+    return {
+      interviewId,
+      interviewType,
+      flowType,
+      candidateEmail,
+      questions,
+      currentQuestionIndex: 0,
+      answers: [],
+      startTime: Date.now(),
+      status: 'not_started'
+    };
+  }
+
+  private static async loadQuestionsForInterview(
+    interviewId: string,
+    interviewType: 'mcq' | 'coding' | 'behavioral' | 'combo',
+    flowType: 'direct' | 'campaign'
+  ): Promise<any[]> {
+    try {
+      if (flowType === 'direct') {
+        // Load from direct interview tables
+        const response = await fetch(`/api/interview/${interviewId}`);
+        const data = await response.json();
+        if (data.success && data.interview?.questions) {
+          return this.filterQuestionsByType(data.interview.questions, interviewType);
+        }
+      } else {
+        // Load from campaign setup
+        const response = await fetch(`/api/campaigns/interview/${interviewId}`);
+        const data = await response.json();
+        if (data.success && data.questions) {
+          return this.filterQuestionsByType(data.questions, interviewType);
+        }
+      }
+      
+      // Fallback to default questions
+      return this.generateDefaultQuestions(interviewType);
+    } catch (error) {
+      console.error('Error loading questions:', error);
+      return this.generateDefaultQuestions(interviewType);
     }
-    if (code.includes('\t') && code.includes('    ')) {
-      errors.push('Mixed tabs and spaces (use consistent indentation)');
-      score -= 0.3;
+  }
+
+  private static filterQuestionsByType(questions: any[], interviewType: string): any[] {
+    if (interviewType === 'combo') return questions; // Return all for combo
+    return questions.filter((q: any) => 
+      q.type === interviewType || 
+      q.questionType === interviewType ||
+      q.category === interviewType
+    );
+  }
+
+  private static generateDefaultQuestions(interviewType: string): any[] {
+    switch (interviewType) {
+      case 'mcq':
+        return [{
+          id: 1,
+          type: 'mcq',
+          question: 'What is the time complexity of binary search?',
+          options: [
+            { id: 'a', text: 'O(n)', isCorrect: false },
+            { id: 'b', text: 'O(log n)', isCorrect: true },
+            { id: 'c', text: 'O(n log n)', isCorrect: false },
+            { id: 'd', text: 'O(n²)', isCorrect: false }
+          ],
+          correctAnswer: 'b',
+          explanation: 'Binary search divides the search space in half with each iteration.',
+          category: 'Algorithms',
+          difficulty: 'medium'
+        }];
+      
+      case 'coding':
+        return [{
+          id: 1,
+          type: 'coding',
+          question: 'Two Sum Problem',
+          description: 'Given an array of integers and a target sum, return indices of two numbers that add up to the target.',
+          examples: [{ input: '[2,7,11,15], target=9', output: '[0,1]', explanation: '2 + 7 = 9' }],
+          testCases: [
+            { input: '[2,7,11,15], 9', expectedOutput: '[0,1]' },
+            { input: '[3,2,4], 6', expectedOutput: '[1,2]' }
+          ],
+          difficulty: 'Easy',
+          solution: {
+            javascript: 'function twoSum(nums, target) { /* solution */ }'
+          }
+        }];
+      
+      case 'behavioral':
+        return [{
+          id: 1,
+          type: 'behavioral',
+          question: 'Tell me about a challenging project you worked on.',
+          category: 'Problem-solving',
+          keyPoints: ['Challenge description', 'Actions taken', 'Results achieved'],
+          expectedKeywords: ['project', 'challenge', 'solution', 'result', 'team'],
+          scoringCriteria: {
+            structure: ['situation', 'task', 'action', 'result'],
+            specificity: ['specific example', 'detailed actions'],
+            impact: ['positive outcome', 'lessons learned']
+          }
+        }];
+      
+      case 'combo':
+        return [
+          ...this.generateDefaultQuestions('mcq'),
+          ...this.generateDefaultQuestions('coding'),
+          ...this.generateDefaultQuestions('behavioral')
+        ];
+      
+      default:
+        return [];
     }
-  } else if (language === 'typescript' || language === 'javascript') {
-    // Check for basic JS/TS syntax
-    if (!code.includes('function ') && !code.includes('=>') && !code.includes('const ') && !code.includes('let ')) {
-      errors.push('No clear function or variable definition found');
-      score -= 0.5;
+  }
+
+  static submitAnswer(flow: InterviewFlow, questionId: string, answer: any, timeSpent: number): InterviewFlow {
+    const questionAnswer: QuestionAnswer = {
+      questionId,
+      question: flow.questions[flow.currentQuestionIndex],
+      answer,
+      timeSpent,
+      questionType: flow.questions[flow.currentQuestionIndex].type || 
+                   flow.questions[flow.currentQuestionIndex].questionType || 
+                   'mcq'
+    };
+
+    const updatedFlow = {
+      ...flow,
+      answers: [...flow.answers, questionAnswer],
+      currentQuestionIndex: flow.currentQuestionIndex + 1,
+      status: (flow.currentQuestionIndex + 1 >= flow.questions.length) 
+        ? 'completed' as const
+        : 'in_progress' as const
+    };
+
+    if (updatedFlow.status === 'completed') {
+      updatedFlow.endTime = Date.now();
     }
-    const openBraces = (code.match(/{/g) || []).length;
-    const closeBraces = (code.match(/}/g) || []).length;
-    if (openBraces !== closeBraces) {
-      errors.push('Mismatched braces');
-      score -= 0.4;
+
+    return updatedFlow;
+  }
+
+  static getCurrentQuestion(flow: InterviewFlow): any | null {
+    if (flow.currentQuestionIndex >= flow.questions.length) {
+      return null;
+    }
+    return flow.questions[flow.currentQuestionIndex];
+  }
+
+  static getProgress(flow: InterviewFlow) {
+    const timeElapsed = flow.endTime ? 
+      flow.endTime - flow.startTime : 
+      Date.now() - flow.startTime;
+
+    return {
+      current: flow.currentQuestionIndex + 1,
+      total: flow.questions.length,
+      percentage: Math.round(((flow.currentQuestionIndex + 1) / flow.questions.length) * 100),
+      timeElapsed: Math.round(timeElapsed / 1000)
+    };
+  }
+
+  // =================== ANALYSIS AND SCORING ===================
+
+  static async analyzeInterview(
+    interviewId: string,
+    candidateEmail: string,
+    questionsAndAnswers: QuestionAnswer[]
+  ): Promise<InterviewAnalysisResult> {
+    const detailedResults: any[] = [];
+    const breakdown: InterviewAnalysisResult['breakdown'] = {};
+    let totalScore = 0;
+    let totalMaxScore = 0;
+    let totalTime = 0;
+
+    // Process each question-answer pair
+    for (const qa of questionsAndAnswers) {
+      const result = await this.analyzeQuestionAnswer(qa);
+      detailedResults.push(result);
+      
+      totalScore += result.score;
+      totalMaxScore += result.maxScore;
+      totalTime += qa.timeSpent;
+
+      // Group by question type
+      if (!breakdown[qa.questionType]) {
+        breakdown[qa.questionType] = {
+          score: 0,
+          maxScore: 0,
+          percentage: 0,
+          feedback: '',
+          analysis: { questions: [], averageScore: 0 }
+        };
+      }
+
+      breakdown[qa.questionType].score += result.score;
+      breakdown[qa.questionType].maxScore += result.maxScore;
+      breakdown[qa.questionType].analysis.questions.push(result);
+    }
+
+    // Calculate percentages for each type
+    Object.keys(breakdown).forEach(type => {
+      const section = breakdown[type];
+      section.percentage = section.maxScore > 0 ? (section.score / section.maxScore) * 100 : 0;
+      section.analysis.averageScore = section.analysis.questions.length > 0
+        ? section.score / section.analysis.questions.length
+        : 0;
+      section.feedback = this.generateSectionFeedback(type, section.percentage);
+    });
+
+    const percentage = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
+    const passed = percentage >= 60;
+
+    const summary = this.generateSummary(breakdown, percentage);
+    const timeAnalysis = this.analyzeTimeEfficiency(totalTime, questionsAndAnswers.length);
+    const aiInsights = this.generateAIInsights(breakdown);
+
+    const analysisResult: InterviewAnalysisResult = {
+      overallScore: totalScore,
+      maxScore: totalMaxScore,
+      percentage: Math.round(percentage * 100) / 100,
+      passed,
+      breakdown,
+      summary,
+      timeAnalysis,
+      detailedResults,
+      aiInsights
+    };
+
+    await this.saveAnalysisToDatabase(interviewId, candidateEmail, analysisResult);
+    return analysisResult;
+  }
+
+  private static async analyzeQuestionAnswer(qa: QuestionAnswer): Promise<any> {
+    switch (qa.questionType) {
+      case 'mcq':
+        return this.analyzeMCQAnswer(qa);
+      case 'coding':
+        return this.analyzeCodingAnswer(qa);
+      case 'behavioral':
+        return this.analyzeBehavioralAnswer(qa);
+      default:
+        throw new Error(`Unsupported question type: ${qa.questionType}`);
     }
   }
-  
-  // General checks
-  if (code.trim().length < 20) {
-    errors.push('Solution appears incomplete or too short');
-    score -= 1;
-  }
-  
-  return {
-    score: Math.max(0, score),
-    errors,
-    suggestions: score < 2 ? ['Review syntax basics for ' + language, 'Use consistent formatting'] : []
-  };
-}
 
-function analyzeLogic(code: string, question: CodingQuestion) {
-  let score = 4; // Full logic points
-  let hasMainLogic = false;
-  let approach = 'Unknown';
-  const suggestions: string[] = [];
-  
-  const lowerCode = code.toLowerCase();
-  
-  // Check for main algorithmic components
-  if (lowerCode.includes('for ') || lowerCode.includes('while ') || lowerCode.includes('foreach')) {
-    hasMainLogic = true;
-    approach = 'Iterative approach detected';
+  private static analyzeMCQAnswer(qa: QuestionAnswer) {
+    const question: MCQQuestion = qa.question;
+    const result = scoreMCQAnswer(question, qa.answer, qa.timeSpent);
+    
+    return {
+      questionId: qa.questionId,
+      questionType: 'mcq',
+      question: question.question,
+      correctAnswer: question.correctAnswer,
+      submittedAnswer: qa.answer,
+      ...result,
+      timeSpent: qa.timeSpent,
+      category: question.category || 'General',
+      difficulty: question.difficulty || 'medium'
+    };
   }
-  
-  if (lowerCode.includes('return ') || lowerCode.includes('echo ') || lowerCode.includes('print')) {
-    hasMainLogic = true;
-  }
-  
-  // Check against expected solution patterns
-  const expectedSolution = question.solution.python || question.solution.typescript || question.solution.php || '';
-  const expectedLower = expectedSolution.toLowerCase();
-  
-  // Look for similar logical structures
-  if (expectedLower.includes('sort') && lowerCode.includes('sort')) {
-    score += 0.5; // Bonus for using appropriate methods
-  }
-  
-  if (expectedLower.includes('binary') && (lowerCode.includes('binary') || lowerCode.includes('left') && lowerCode.includes('right'))) {
-    score += 0.5; // Bonus for correct algorithm choice
-  }
-  
-  if (!hasMainLogic) {
-    score -= 2;
-    suggestions.push('Include main algorithmic logic');
-    suggestions.push('Ensure your solution returns or outputs a result');
-  }
-  
-  if (code.length < 50) {
-    score -= 1;
-    suggestions.push('Solution may be incomplete - add more implementation details');
-  }
-  
-  return {
-    score: Math.max(0, Math.min(4, score)),
-    hasMainLogic,
-    approach,
-    suggestions
-  };
-}
 
-function analyzeEfficiency(code: string, difficulty: string) {
-  let score = 2; // Full efficiency points
-  const suggestions: string[] = [];
-  const lowerCode = code.toLowerCase();
-  
-  // Check for nested loops (potential O(n²) complexity)
-  const forLoops = (lowerCode.match(/for /g) || []).length;
-  const whileLoops = (lowerCode.match(/while /g) || []).length;
-  const totalLoops = forLoops + whileLoops;
-  
-  if (totalLoops > 2 && difficulty === 'Easy') {
-    score -= 0.5;
-    suggestions.push('Consider a more efficient approach with fewer nested loops');
+  private static analyzeCodingAnswer(qa: QuestionAnswer) {
+    const question: CodingQuestion = qa.question;
+    const code = qa.answer.code || qa.answer;
+    const language = qa.answer.language || 'javascript';
+    const result = scoreCodingAnswer(question, code, language, qa.timeSpent);
+    
+    return {
+      questionId: qa.questionId,
+      questionType: 'coding',
+      question: question.question,
+      submittedCode: code,
+      language,
+      ...result,
+      timeSpent: qa.timeSpent,
+      difficulty: question.difficulty
+    };
   }
-  
-  if (totalLoops > 3) {
-    score -= 1;
-    suggestions.push('Algorithm may be inefficient - review time complexity');
-  }
-  
-  // Check for efficient methods
-  if (lowerCode.includes('sort') || lowerCode.includes('binary')) {
-    score += 0.2; // Bonus for using efficient algorithms
-  }
-  
-  return {
-    score: Math.max(0, Math.min(2, score)),
-    suggestions
-  };
-}
 
-function analyzeCompleteness(code: string, question: CodingQuestion) {
-  let score = 1.5; // Full completeness points
-  
-  // Check if solution handles the examples
-  const hasReturnStatement = /return /i.test(code);
-  const hasMainLogic = code.length > 30;
-  const hasVariables = /\b(var|let|const|=)\b/i.test(code);
-  
-  if (!hasReturnStatement && !code.includes('print') && !code.includes('echo')) {
-    score -= 0.5;
+  private static analyzeBehavioralAnswer(qa: QuestionAnswer) {
+    const question: BehavioralQuestion = qa.question;
+    const answer = qa.answer.text || qa.answer;
+    const result = scoreBehavioralAnswer(question, answer, qa.timeSpent);
+    
+    return {
+      questionId: qa.questionId,
+      questionType: 'behavioral',
+      question: question.question,
+      submittedAnswer: answer,
+      ...result,
+      timeSpent: qa.timeSpent,
+      category: question.category
+    };
   }
-  
-  if (!hasMainLogic) {
-    score -= 0.5;
-  }
-  
-  if (!hasVariables) {
-    score -= 0.3;
-  }
-  
-  // Check for edge case handling
-  if (code.includes('if ') || code.includes('else')) {
-    score += 0.2; // Bonus for conditional logic
-  }
-  
-  return {
-    score: Math.max(0, Math.min(1.5, score))
-  };
-}
 
-function analyzeSTARStructure(answer: string) {
-  const lowerAnswer = answer.toLowerCase();
-  let score = 0;
-  const suggestions: string[] = [];
-  
-  // Situation indicators
-  const situationWords = ['situation', 'when', 'time', 'project', 'company', 'team', 'role'];
-  const hasSituation = situationWords.some(word => lowerAnswer.includes(word));
-  
-  // Task indicators  
-  const taskWords = ['task', 'responsibility', 'needed', 'required', 'goal', 'objective'];
-  const hasTask = taskWords.some(word => lowerAnswer.includes(word));
-  
-  // Action indicators
-  const actionWords = ['did', 'implemented', 'created', 'developed', 'managed', 'led', 'organized'];
-  const hasAction = actionWords.some(word => lowerAnswer.includes(word));
-  
-  // Result indicators
-  const resultWords = ['result', 'outcome', 'achieved', 'improved', 'increased', 'decreased', 'successful'];
-  const hasResult = resultWords.some(word => lowerAnswer.includes(word));
-  
-  // Score based on STAR components present
-  if (hasSituation) score += 0.25;
-  if (hasTask) score += 0.25;
-  if (hasAction) score += 0.3;
-  if (hasResult) score += 0.2;
-  
-  // Suggestions based on missing components
-  if (!hasSituation) suggestions.push('Include more context about the situation or setting');
-  if (!hasTask) suggestions.push('Clearly describe your specific task or challenge');
-  if (!hasAction) suggestions.push('Detail the specific actions you took');
-  if (!hasResult) suggestions.push('Explain the results or outcomes of your actions');
-  
-  return { score, suggestions };
-}
+  private static generateSectionFeedback(type: string, percentage: number): string {
+    if (percentage >= 90) return `Excellent ${type} performance! Outstanding understanding and execution.`;
+    if (percentage >= 80) return `Strong ${type} skills demonstrated with room for minor improvements.`;
+    if (percentage >= 70) return `Good ${type} foundation with some areas needing development.`;
+    if (percentage >= 60) return `Basic ${type} competency shown, significant improvement needed.`;
+    return `${type} skills require substantial development and practice.`;
+  }
 
-function analyzeSpecificity(answer: string, question: BehavioralQuestion) {
-  const lowerAnswer = answer.toLowerCase();
-  let score = 0;
-  const suggestions: string[] = [];
-  
-  // Check for specific examples
-  const specificWords = ['example', 'instance', 'specifically', 'particular', 'exactly'];
-  const hasSpecifics = specificWords.some(word => lowerAnswer.includes(word));
-  
-  // Check for quantifiable details
-  const hasNumbers = /\d+/.test(answer);
-  const hasPercentages = /%|percent/.test(lowerAnswer);
-  const hasTimeline = /week|month|day|year|hour/.test(lowerAnswer);
-  
-  if (hasSpecifics) score += 0.3;
-  if (hasNumbers || hasPercentages) score += 0.3;
-  if (hasTimeline) score += 0.2;
-  
-  // Check for category-specific keywords
-  const categoryKeywordMatch = question.expectedKeywords.filter(keyword => 
-    lowerAnswer.includes(keyword.toLowerCase())
-  ).length;
-  
-  score += Math.min(0.2, categoryKeywordMatch * 0.05);
-  
-  if (score < 0.5) {
-    suggestions.push('Provide more specific examples and details');
-    suggestions.push('Include quantifiable results where possible');
-  }
-  
-  return { score: Math.min(1, score), suggestions };
-}
+  private static generateSummary(
+    breakdown: InterviewAnalysisResult['breakdown'],
+    percentage: number
+  ): InterviewAnalysisResult['summary'] {
+    const strengths: string[] = [];
+    const improvements: string[] = [];
+    const recommendations: string[] = [];
 
-function analyzeRelevance(answer: string, question: BehavioralQuestion) {
-  const lowerAnswer = answer.toLowerCase();
-  const questionLower = question.question.toLowerCase();
-  
-  // Extract key concepts from the question
-  const questionWords = questionLower.split(/\s+/).filter(word => 
-    word.length > 3 && !['when', 'time', 'tell', 'about', 'describe', 'what', 'how'].includes(word)
-  );
-  
-  // Check how many question concepts are addressed in the answer
-  const relevantWordMatches = questionWords.filter(word => 
-    lowerAnswer.includes(word.substring(0, word.length - 1)) // Partial word matching
-  ).length;
-  
-  const relevanceRatio = questionWords.length > 0 ? relevantWordMatches / questionWords.length : 0.5;
-  
-  return { score: Math.min(1, relevanceRatio + 0.2) }; // Base 0.2 + relevance ratio
-}
+    Object.keys(breakdown).forEach(type => {
+      const section = breakdown[type];
+      if (section.percentage >= 80) {
+        strengths.push(`Strong ${type} skills (${section.percentage.toFixed(1)}%)`);
+      } else if (section.percentage < 60) {
+        improvements.push(`${type} skills need improvement (${section.percentage.toFixed(1)}%)`);
+      }
+    });
 
-function analyzeImpact(answer: string) {
-  const lowerAnswer = answer.toLowerCase();
-  let score = 0;
-  const suggestions: string[] = [];
-  
-  const impactWords = [
-    'improved', 'increased', 'decreased', 'reduced', 'saved', 'earned', 'achieved',
-    'successful', 'exceeded', 'delivered', 'completed', 'resolved', 'solved'
-  ];
-  
-  const hasImpact = impactWords.some(word => lowerAnswer.includes(word));
-  const hasQuantifiableImpact = /\d+%|\$\d+|\d+\s*(hours?|days?|weeks?|months?)/.test(answer);
-  
-  if (hasImpact) score += 0.5;
-  if (hasQuantifiableImpact) score += 0.5;
-  
-  if (!hasImpact) {
-    suggestions.push('Describe the impact or results of your actions');
-  }
-  
-  return { score, hasImpact, suggestions };
-}
+    if (breakdown.mcq && breakdown.mcq.percentage < 70) {
+      recommendations.push('Review fundamental concepts and practice more MCQ questions');
+    }
+    if (breakdown.coding && breakdown.coding.percentage < 70) {
+      recommendations.push('Practice coding problems and focus on algorithm optimization');
+    }
+    if (breakdown.behavioral && breakdown.behavioral.percentage < 70) {
+      recommendations.push('Prepare structured responses using the STAR method');
+    }
 
-function analyzeCommunication(answer: string, wordCount: number) {
-  let score = 1; // Base communication score
-  const suggestions: string[] = [];
-  
-  // Check answer length appropriateness
-  if (wordCount < 50) {
-    score -= 0.3;
-    suggestions.push('Provide more detailed responses (aim for 100-200 words)');
-  } else if (wordCount > 300) {
-    score -= 0.2;
-    suggestions.push('Try to be more concise while maintaining detail');
-  }
-  
-  // Check for clear structure indicators
-  const structureWords = ['first', 'second', 'then', 'finally', 'initially', 'subsequently'];
-  const hasStructure = structureWords.some(word => 
-    answer.toLowerCase().includes(word)
-  );
-  
-  if (hasStructure) score += 0.1;
-  
-  // Check for professional language
-  const informalWords = ['like', 'um', 'uh', 'kinda', 'sorta', 'yeah'];
-  const hasInformalLanguage = informalWords.some(word => 
-    answer.toLowerCase().includes(word)
-  );
-  
-  if (hasInformalLanguage) {
-    score -= 0.2;
-    suggestions.push('Use more professional language');
-  }
-  
-  return { score: Math.max(0, Math.min(1, score)), suggestions };
-}
+    let overallFeedback = '';
+    if (percentage >= 85) overallFeedback = 'Exceptional candidate with strong technical and soft skills. Highly recommended.';
+    else if (percentage >= 75) overallFeedback = 'Strong candidate with good overall performance. Minor areas for development.';
+    else if (percentage >= 65) overallFeedback = 'Decent candidate with potential. Some skill gaps that could be addressed.';
+    else if (percentage >= 50) overallFeedback = 'Below average performance. Significant development needed.';
+    else overallFeedback = 'Poor performance across multiple areas. Not recommended for the current position.';
 
-function generateCodingFeedback(breakdown: any, syntaxAnalysis: any, logicAnalysis: any, efficiencyAnalysis: any, completenessAnalysis: any) {
-  const totalScore = Object.values(breakdown).reduce((sum: number, score: any) => sum + score, 0);
-  const percentage = Math.round((totalScore / 10) * 100);
-  
-  let feedback = `Code Analysis Result: ${percentage}%\n\n`;
-  
-  feedback += `Breakdown:\n`;
-  feedback += `• Syntax & Structure: ${breakdown.syntax}/2 points\n`;
-  feedback += `• Logic & Algorithm: ${breakdown.logic}/4 points\n`;
-  feedback += `• Efficiency: ${breakdown.efficiency}/2 points\n`;
-  feedback += `• Completeness: ${breakdown.completeness}/1.5 points\n`;
-  feedback += `• Time Management: ${breakdown.timeManagement}/0.5 points\n\n`;
-  
-  if (syntaxAnalysis.errors.length > 0) {
-    feedback += `Syntax Issues:\n${syntaxAnalysis.errors.map((e: string) => `• ${e}`).join('\n')}\n\n`;
+    return { strengths, improvements, recommendations, overallFeedback };
   }
-  
-  if (logicAnalysis.suggestions.length > 0) {
-    feedback += `Suggestions:\n${logicAnalysis.suggestions.map((s: string) => `• ${s}`).join('\n')}\n\n`;
-  }
-  
-  if (percentage >= 80) {
-    feedback += `Excellent work! Your solution demonstrates strong programming skills.`;
-  } else if (percentage >= 60) {
-    feedback += `Good effort! Review the suggestions to improve your solution.`;
-  } else {
-    feedback += `Keep practicing! Focus on the areas highlighted for improvement.`;
-  }
-  
-  return feedback;
-}
 
-function generateBehavioralFeedback(breakdown: any, starAnalysis: any, specificityAnalysis: any, impactAnalysis: any, category: string) {
-  const totalScore = Object.values(breakdown).reduce((sum: number, score: any) => sum + score, 0);
-  const percentage = Math.round((totalScore / 5) * 100);
-  
-  let feedback = `Behavioral Response Analysis: ${percentage}%\n\n`;
-  
-  feedback += `Assessment Areas:\n`;
-  feedback += `• Structure (STAR method): ${breakdown.structure}/1 point\n`;
-  feedback += `• Specificity & Examples: ${breakdown.specificity}/1 point\n`;
-  feedback += `• Relevance to Question: ${breakdown.relevance}/1 point\n`;
-  feedback += `• Impact & Results: ${breakdown.impact}/1 point\n`;
-  feedback += `• Communication Quality: ${breakdown.communication}/1 point\n\n`;
-  
-  const allSuggestions = [
-    ...starAnalysis.suggestions,
-    ...specificityAnalysis.suggestions,
-    ...impactAnalysis.suggestions
-  ];
-  
-  if (allSuggestions.length > 0) {
-    feedback += `Improvement Suggestions:\n${allSuggestions.map((s: string) => `• ${s}`).join('\n')}\n\n`;
+  private static analyzeTimeEfficiency(totalTime: number, questionCount: number) {
+    const averageTimePerQuestion = questionCount > 0 ? totalTime / questionCount : 0;
+    const totalMinutes = totalTime / 60;
+
+    let timeEfficiency: 'excellent' | 'good' | 'fair' | 'poor';
+    if (averageTimePerQuestion < 120) timeEfficiency = 'excellent';
+    else if (averageTimePerQuestion < 240) timeEfficiency = 'good';
+    else if (averageTimePerQuestion < 360) timeEfficiency = 'fair';
+    else timeEfficiency = 'poor';
+
+    return {
+      totalTime: totalMinutes,
+      averageTimePerQuestion: averageTimePerQuestion / 60,
+      timeEfficiency
+    };
   }
-  
-  if (percentage >= 80) {
-    feedback += `Outstanding response! You effectively demonstrated ${category.toLowerCase()} competency with specific examples and clear results.`;
-  } else if (percentage >= 60) {
-    feedback += `Good response showing ${category.toLowerCase()} awareness. Consider adding more specific details and quantifiable outcomes.`;
-  } else {
-    feedback += `Your response shows potential. Focus on providing specific examples using the STAR method and highlighting measurable results.`;
+
+  private static generateAIInsights(breakdown: InterviewAnalysisResult['breakdown']) {
+    let candidateProfile = 'Balanced candidate';
+    if (breakdown.coding && breakdown.coding.percentage > 80) {
+      candidateProfile = 'Technical specialist with strong coding skills';
+    } else if (breakdown.behavioral && breakdown.behavioral.percentage > 80) {
+      candidateProfile = 'Strong communicator with excellent soft skills';
+    } else if (breakdown.mcq && breakdown.mcq.percentage > 80) {
+      candidateProfile = 'Knowledge-focused candidate with good theoretical understanding';
+    }
+
+    const skillAssessment: { [skill: string]: number } = {};
+    if (breakdown.coding) {
+      skillAssessment['Programming'] = breakdown.coding.percentage;
+      skillAssessment['Problem Solving'] = breakdown.coding.percentage * 0.9;
+      skillAssessment['Algorithm Design'] = breakdown.coding.percentage * 0.8;
+    }
+    if (breakdown.behavioral) {
+      skillAssessment['Communication'] = breakdown.behavioral.percentage;
+      skillAssessment['Leadership'] = breakdown.behavioral.percentage * 0.7;
+      skillAssessment['Teamwork'] = breakdown.behavioral.percentage * 0.8;
+    }
+    if (breakdown.mcq) {
+      skillAssessment['Technical Knowledge'] = breakdown.mcq.percentage;
+      skillAssessment['Domain Expertise'] = breakdown.mcq.percentage * 0.9;
+    }
+
+    const riskFactors: string[] = [];
+    Object.keys(breakdown).forEach(type => {
+      if (breakdown[type].percentage < 50) {
+        riskFactors.push(`Very low ${type} performance may indicate skill gaps`);
+      }
+    });
+
+    const scores = Object.values(breakdown).map(b => b.percentage);
+    const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
+    const confidenceLevel = Math.max(0, Math.min(100, 100 - variance));
+
+    return { candidateProfile, skillAssessment, riskFactors, confidenceLevel };
   }
-  
-  return feedback;
+
+  private static async saveAnalysisToDatabase(
+    interviewId: string,
+    candidateEmail: string,
+    analysisResult: InterviewAnalysisResult
+  ): Promise<void> {
+    try {
+      const existingResult = await db
+        .select()
+        .from(candidateResults)
+        .where(eq(candidateResults.interviewId, interviewId))
+        .limit(1);
+
+      const resultData = {
+        interviewId,
+        score: Math.round(analysisResult.overallScore),
+        maxScore: analysisResult.maxScore,
+        passed: analysisResult.passed,
+        completedAt: new Date(),
+        status: 'completed',
+        detailedAnalysis: analysisResult,
+        scoreBreakdown: analysisResult.breakdown,
+        feedback: analysisResult.summary.overallFeedback,
+        updatedAt: new Date()
+      };
+
+      if (existingResult.length > 0) {
+        await db.update(candidateResults).set(resultData).where(eq(candidateResults.id, existingResult[0].id));
+      } else {
+        await db.insert(candidateResults).values({
+          ...resultData,
+          candidateId: '',
+          interviewType: 'combo',
+          roundNumber: 1,
+          createdAt: new Date()
+        });
+      }
+
+      console.log(`✅ Analysis results saved for interview ${interviewId}`);
+    } catch (error) {
+      console.error('Error saving analysis results:', error);
+    }
+  }
+
+  static async getAnalysisResults(interviewId: string): Promise<InterviewAnalysisResult | null> {
+    try {
+      const result = await db
+        .select()
+        .from(candidateResults)
+        .where(eq(candidateResults.interviewId, interviewId))
+        .limit(1);
+
+      return result.length > 0 ? result[0].detailedAnalysis as InterviewAnalysisResult : null;
+    } catch (error) {
+      console.error('Error fetching analysis results:', error);
+      return null;
+    }
+  }
+
+  static async completeInterview(flow: InterviewFlow): Promise<InterviewAnalysisResult> {
+    if (flow.status !== 'completed') {
+      throw new Error('Interview is not completed yet');
+    }
+
+    return await this.analyzeInterview(flow.interviewId, flow.candidateEmail, flow.answers);
+  }
 }

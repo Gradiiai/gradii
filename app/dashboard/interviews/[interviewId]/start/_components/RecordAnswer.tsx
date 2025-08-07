@@ -15,7 +15,7 @@ import { toast } from "@/shared/hooks/use-toast";
 import { db } from "@/lib/database/connection";
 import { useSession } from "next-auth/react";
 import moment from "moment";
-import { candidateInterviewHistory } from "@/lib/database/schema";
+import { candidateResults } from "@/lib/database/schema";
 import { and, eq } from "drizzle-orm";
 import { checkAndAutoCompleteInterview } from "@/lib/services/analytics";
 
@@ -82,12 +82,12 @@ const RecordAnswer = ({
       try {
         const existingAnswers = await db
           .select()
-          .from(candidateInterviewHistory)
+          .from(candidateResults)
           .where(
             and(
-              eq(candidateInterviewHistory.interviewId, interviewData.interviewId),
-              eq(candidateInterviewHistory.candidateId, session?.user?.id ?? ''),
-              eq(candidateInterviewHistory.interviewType, 'behavioral')
+              eq(candidateResults.interviewId, interviewData.interviewId),
+              eq(candidateResults.candidateId, session?.user?.id ?? ''),
+              eq(candidateResults.interviewType, 'behavioral')
             )
           );
 
@@ -258,7 +258,7 @@ const RecordAnswer = ({
       if (existingAnswer) {
         // Update existing answer
         await db
-          .update(candidateInterviewHistory)
+          .update(candidateResults)
           .set({
             feedback: answerData.feedback,
             score: answerData.score,
@@ -266,14 +266,14 @@ const RecordAnswer = ({
           })
           .where(
             and(
-              eq(candidateInterviewHistory.interviewId, interviewData.interviewId),
-              eq(candidateInterviewHistory.candidateId, session?.user?.id ?? ''),
-              eq(candidateInterviewHistory.interviewType, 'behavioral')
+              eq(candidateResults.interviewId, interviewData.interviewId),
+              eq(candidateResults.candidateId, session?.user?.id ?? ''),
+              eq(candidateResults.interviewType, 'behavioral')
             )
           );
       } else {
         // Create new answer
-        await db.insert(candidateInterviewHistory).values([answerData]);
+        await db.insert(candidateResults).values([answerData]);
       }
 
       setFeedback(data.feedback);

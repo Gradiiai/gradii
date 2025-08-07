@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
-import { candidateInterviewHistory, candidateUsers, candidateApplications, jobCampaigns, companies, Interview, CodingInterview } from '@/lib/database/schema';
+import { candidateResults, candidateUsers, candidateApplications, jobCampaigns, companies, Interview, CodingInterview } from '@/lib/database/schema';
 import { eq, and, desc, or, sql } from 'drizzle-orm';
 import { auth } from '@/auth';
 
@@ -19,21 +19,21 @@ export async function GET(request: NextRequest) {
 
     console.log(`Fetching interview results for company: ${session.user.companyId}`);
 
-    // Primary source: candidateInterviewHistory with proper company filtering
+    // Primary source: candidateResults with proper company filtering
     const completedInterviews = await db
       .select({
-        // Interview History fields
-        historyId: candidateInterviewHistory.id,
-        interviewId: candidateInterviewHistory.interviewId,
-        interviewType: candidateInterviewHistory.interviewType,
-        status: candidateInterviewHistory.status,
-        score: candidateInterviewHistory.score,
-        maxScore: candidateInterviewHistory.maxScore,
-        duration: candidateInterviewHistory.duration,
-        feedback: candidateInterviewHistory.feedback,
-        completedAt: candidateInterviewHistory.completedAt,
-        startedAt: candidateInterviewHistory.startedAt,
-        passed: candidateInterviewHistory.passed,
+        // Core interview data
+        historyId: candidateResults.id,
+        interviewId: candidateResults.interviewId,
+        interviewType: candidateResults.interviewType,
+        status: candidateResults.status,
+        score: candidateResults.score,
+        maxScore: candidateResults.maxScore,
+        duration: candidateResults.duration,
+        feedback: candidateResults.feedback,
+        completedAt: candidateResults.completedAt,
+        startedAt: candidateResults.startedAt,
+        passed: candidateResults.passed,
         
         // Candidate info
         candidateId: candidateUsers.id,
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         candidateEmail: candidateUsers.email,
         
         // Campaign info (for campaign-based Interview)
-        applicationId: candidateInterviewHistory.applicationId,
+        applicationId: candidateResults.applicationId,
         campaignId: jobCampaigns.id,
         campaignName: jobCampaigns.campaignName,
         jobTitle: jobCampaigns.jobTitle,
@@ -53,15 +53,15 @@ export async function GET(request: NextRequest) {
         directInterviewName: sql<string>`COALESCE(${Interview.candidateName}, ${CodingInterview.candidateName})`,
         directInterviewEmail: sql<string>`COALESCE(${Interview.candidateEmail}, ${CodingInterview.candidateEmail})`
       })
-      .from(candidateInterviewHistory)
-      .innerJoin(candidateUsers, eq(candidateInterviewHistory.candidateId, candidateUsers.id))
-      .leftJoin(candidateApplications, eq(candidateInterviewHistory.applicationId, candidateApplications.id))
+      .from(candidateResults)
+      .innerJoin(candidateUsers, eq(candidateResults.candidateId, candidateUsers.id))
+      .leftJoin(candidateApplications, eq(candidateResults.applicationId, candidateApplications.id))
       .leftJoin(jobCampaigns, eq(candidateApplications.campaignId, jobCampaigns.id))
       .leftJoin(companies, eq(jobCampaigns.companyId, companies.id))
-      .leftJoin(Interview, eq(candidateInterviewHistory.interviewId, Interview.interviewId))
-      .leftJoin(Interview, eq(candidateInterviewHistory.interviewId, CodingInterview.interviewId))
+      .leftJoin(Interview, eq(candidateResults.interviewId, Interview.interviewId))
+      .leftJoin(CodingInterview, eq(candidateResults.interviewId, CodingInterview.interviewId))
       .where(and(
-        eq(candidateInterviewHistory.status, 'completed'),
+        eq(candidateResults.status, 'completed'),
         or(
           // Campaign Interview: company matches through job campaign
           eq(companies.id, session.user.companyId),
@@ -70,9 +70,9 @@ export async function GET(request: NextRequest) {
           eq(CodingInterview.companyId, session.user.companyId)
         )
       ))
-      .orderBy(desc(candidateInterviewHistory.completedAt));
+      .orderBy(desc(candidateResults.completedAt));
 
-    console.log(`Found ${completedInterviews.length} completed Interview in candidateInterviewHistory`);
+    console.log(`Found ${completedInterviews.length} completed Interview in candidateResults`);
 
     // Process each interview to create unified result structure
     const results = completedInterviews.map((interview) => {

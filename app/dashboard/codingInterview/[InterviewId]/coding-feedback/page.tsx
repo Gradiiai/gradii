@@ -21,7 +21,7 @@ import {
   Layers} from "lucide-react";
 import { db } from "@/lib/database/connection";
 import { eq, and } from "drizzle-orm";
-import { CodingInterview, candidateInterviewHistory } from "@/lib/database/schema";
+import { CodingInterview, candidateResults } from "@/lib/database/schema";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -85,12 +85,12 @@ const InterviewFeedbackPage = ({ params }: Props) => {
         if (session?.user?.id) {
           const answersResult = await db
               .select()
-              .from(candidateInterviewHistory)
+              .from(candidateResults)
               .where(
                 and(
-                  eq(candidateInterviewHistory.interviewId, InterviewId),
-                  eq(candidateInterviewHistory.candidateId, session?.user?.id ?? ''),
-                  eq(candidateInterviewHistory.interviewType, 'coding')
+                  eq(candidateResults.interviewId, InterviewId),
+                  eq(candidateResults.candidateId, session?.user?.id ?? ''),
+                  eq(candidateResults.interviewType, 'coding')
                 )
               );
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { db } from "@/lib/database/connection";
-import { candidateInterviewHistory } from "@/lib/database/schema";
+import { candidateResults } from "@/lib/database/schema";
 import { eq } from "drizzle-orm";
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -25,12 +25,12 @@ const Feedback = ({ params }: Props) => {
   useEffect(() => {
     const fetchAnswers = async () => {
       try {
-        const result = await db
-          .select()
-          .from(candidateInterviewHistory)
-          .where(eq(candidateInterviewHistory.interviewId, interviewId))
-          .orderBy(candidateInterviewHistory.id);
-        setAnswers(result);
+        const interviewHistory = await db
+       .select()
+       .from(candidateResults)
+       .where(eq(candidateResults.interviewId, interviewId))
+       .orderBy(candidateResults.id);
+         setAnswers(interviewHistory);
       } catch (error) {
         console.error("Error fetching answers:", error);
       }

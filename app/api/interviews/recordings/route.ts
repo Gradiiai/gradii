@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { azureStorageService } from '@/lib/integrations/storage/azure';
 import { db } from '@/lib/database/connection';
-// UserAnswer import removed - migrated to candidateInterviewHistory
+// UserAnswer import removed - migrated to candidateResults
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { auth } from '@/auth';
-import { Interview, candidates, candidateInterviewHistory } from '@/lib/database/schema';
+import { Interview, candidates, candidateResults } from '@/lib/database/schema';
 
 // POST - Upload interview recording
 export async function POST(request: NextRequest) {
@@ -73,11 +73,11 @@ export async function POST(request: NextRequest) {
           // Find the user answer for this question
           const userAnswers = await db
             .select()
-            .from(candidateInterviewHistory)
+            .from(candidateResults)
             .where(
               and(
-                eq(candidateInterviewHistory.interviewId, interviewId),
-                eq(candidateInterviewHistory.candidateId, session.user.id ?? '')
+                eq(candidateResults.interviewId, interviewId),
+                eq(candidateResults.candidateId, session.user.id ?? '')
               )
             );
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
             if (interviewRecord) {
               const answerId = interviewRecord.id;
               
-              // Note: candidateInterviewHistory table doesn't have recordingUrl field
+              // Note: candidateResults table has recordingUrl field
               // Recording URL is stored separately in Azure Blob Storage
               console.log(`Recording uploaded for interview ${interviewId}, question ${questionIndexNum}:`, uploadUrl);
             }

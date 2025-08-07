@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
 import { Interview, CodingInterview, campaignInterviews, interviewSetups, jobCampaigns, companies } from '@/lib/database/schema';
 import { eq, and } from 'drizzle-orm';
-import { verifyInterviewSession } from '@/lib/auth/interview-session';
+import { verifyInterviewSession } from '@/lib/auth/redis-session';
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +12,7 @@ export async function GET(
     const { id } = await params;
     
     // Verify interview session
-    const session = verifyInterviewSession(request);
+    const session = await verifyInterviewSession(request);
     if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized. Please complete OTP verification first.' },
@@ -36,18 +36,34 @@ export async function GET(
 
     if (directInterview.length > 0) {
       const interview = directInterview[0];
+      
+      // Parse interview questions if they're stored as JSON string
+      let questions = [];
+      try {
+        if (interview.interviewQuestions) {
+          questions = typeof interview.interviewQuestions === 'string' 
+            ? JSON.parse(interview.interviewQuestions) 
+            : interview.interviewQuestions;
+        }
+      } catch (error) {
+        console.error('Error parsing interview questions:', error);
+        questions = [];
+      }
+
       return NextResponse.json({
         success: true,
         interview: {
           id: interview.interviewId,
           title: `${interview.interviewType} Interview`,
           type: interview.interviewType,
+          interviewType: interview.interviewType,
           companyName: 'Company',
           jobTitle: interview.jobPosition,
           duration: 60,
           scheduledAt: interview.interviewDate,
           status: interview.interviewStatus,
           instructions: 'Complete the interview questions to the best of your ability.',
+          questions: questions,
           interviewQuestions: interview.interviewQuestions,
         }
       });
@@ -110,18 +126,34 @@ export async function GET(
         }
       }
 
+      // Parse interview questions if they're stored as JSON string
+      let questions = [];
+      try {
+        const questionsData = interviewData.length > 0 ? interviewData[0].interviewQuestions : null;
+        if (questionsData) {
+          questions = typeof questionsData === 'string' 
+            ? JSON.parse(questionsData) 
+            : questionsData;
+        }
+      } catch (error) {
+        console.error('Error parsing campaign interview questions:', error);
+        questions = [];
+      }
+
       return NextResponse.json({
         success: true,
         interview: {
           id: interview.interviewId,
           title: `${interview.interviewType} Interview`,
           type: interview.interviewType,
+          interviewType: interview.interviewType,
           companyName: companyName,
           jobTitle: campaign.length > 0 ? campaign[0].jobTitle : 'Position',
           duration: setup.length > 0 ? setup[0].timeLimit : 60,
           scheduledAt: interview.scheduledAt,
           status: interview.status,
           instructions: setup.length > 0 ? setup[0].instructions : 'Complete the interview questions to the best of your ability.',
+          questions: questions,
           interviewQuestions: interviewData.length > 0 ? interviewData[0].interviewQuestions : null,
         }
       });
@@ -141,18 +173,34 @@ export async function GET(
 
     if (codingInterview.length > 0) {
       const interview = codingInterview[0];
+      
+      // Parse coding questions if they're stored as JSON string
+      let questions = [];
+      try {
+        if (interview.codingQuestions) {
+          questions = typeof interview.codingQuestions === 'string' 
+            ? JSON.parse(interview.codingQuestions) 
+            : interview.codingQuestions;
+        }
+      } catch (error) {
+        console.error('Error parsing coding questions:', error);
+        questions = [];
+      }
+
       return NextResponse.json({
         success: true,
         interview: {
           id: interview.interviewId,
           title: 'Coding Interview',
           type: 'coding',
+          interviewType: 'coding',
           companyName: 'Company',
           jobTitle: interview.interviewTopic,
           duration: 60,
           scheduledAt: interview.interviewDate,
           status: interview.interviewStatus,
           instructions: 'Complete the coding challenges to demonstrate your programming skills.',
+          questions: questions,
           interviewQuestions: interview.codingQuestions,
         }
       });
@@ -182,7 +230,7 @@ export async function POST(
     const { action } = body;
 
     // Verify interview session
-    const session = verifyInterviewSession(request);
+    const session = await verifyInterviewSession(request);
     if (!session) {
       return NextResponse.json(
         { error: 'Unauthorized. Please complete OTP verification first.' },

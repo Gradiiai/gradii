@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       const photoUrl = blockBlobClient.url;
 
       // TODO: Store photo URL in database for future reference
-      // You may want to add this to candidateInterviewHistory or create a separate table
+      // You may want to add this to candidateResults or create a separate table
       // for verification photos
       
       console.log(`Verification photo uploaded successfully: ${photoUrl}`);

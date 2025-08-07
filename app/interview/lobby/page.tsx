@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/shared
 import { Button } from '@/components/ui/shared/button';
 import { Badge } from '@/components/ui/shared/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import FaceVerification, { FaceVerificationData } from '@/components/interview/FaceVerification';
+import { getCandidateLocationInfo, CandidateLocationInfo } from '@/lib/utils/location';
 import {
   CheckCircle2,
   Clock,
@@ -44,6 +46,10 @@ function InterviewLobbyContent() {
     microphone: false,
   });
   const [testingMedia, setTestingMedia] = useState(false);
+  const [faceVerified, setFaceVerified] = useState(false);
+  const [faceVerificationData, setFaceVerificationData] = useState<FaceVerificationData | null>(null);
+  const [locationData, setLocationData] = useState<CandidateLocationInfo | null>(null);
+  const [capturingLocation, setCapturingLocation] = useState(false);
 
   const interviewId = searchParams.get('interviewId');
   const interviewType = searchParams.get('type');
@@ -86,7 +92,21 @@ function InterviewLobbyContent() {
       }
     };
 
+    const captureLocation = async () => {
+      setCapturingLocation(true);
+      try {
+        const location = await getCandidateLocationInfo();
+        setLocationData(location);
+        console.log('Location captured:', location);
+      } catch (err) {
+        console.error('Error capturing location:', err);
+      } finally {
+        setCapturingLocation(false);
+      }
+    };
+
     loadInterview();
+    captureLocation();
   }, [interviewId]);
 
   const testMediaDevices = async () => {
@@ -115,8 +135,39 @@ function InterviewLobbyContent() {
     }
   };
 
-  const startInterview = () => {
+  const handleFaceVerificationComplete = (data: FaceVerificationData) => {
+    setFaceVerified(true);
+    setFaceVerificationData(data);
+    console.log('Face verification completed:', data);
+  };
+
+  const handleFaceVerificationError = (error: string) => {
+    console.error('Face verification error:', error);
+    setError(`Face verification failed: ${error}`);
+  };
+
+  const startInterview = async () => {
     if (!interview) return;
+
+    // Update session with verification data before starting interview
+    if (faceVerificationData || locationData) {
+      try {
+        await fetch('/api/interview/update-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            interviewId,
+            faceVerificationData,
+            locationData,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to update session with verification data:', err);
+      }
+    }
 
     const queryString = `?interviewId=${interviewId}`;
     
@@ -316,6 +367,39 @@ function InterviewLobbyContent() {
           </CardContent>
         </Card>
 
+        {/* Face Verification */}
+        <FaceVerification
+          onVerificationComplete={handleFaceVerificationComplete}
+          onVerificationError={handleFaceVerificationError}
+          isRequired={false}
+          candidateEmail={searchParams.get('email') || 'candidate'}
+        />
+
+        {/* Location Status */}
+        {locationData && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <CheckCircle2 className="h-5 w-5 mr-2 text-green-600" />
+                Location Captured
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="text-sm text-gray-600">
+                <p><strong>IP:</strong> {locationData.ip.ip}</p>
+                {locationData.ip.city && (
+                  <p><strong>Location:</strong> {locationData.ip.city}, {locationData.ip.country}</p>
+                )}
+                {locationData.gps?.latitude && (
+                  <p><strong>GPS:</strong> {locationData.gps.latitude.toFixed(4)}, {locationData.gps.longitude?.toFixed(4)}</p>
+                )}
+                <p><strong>Browser:</strong> {locationData.browser.name} {locationData.browser.version}</p>
+                <p><strong>Timezone:</strong> {locationData.timezone}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Ready to Start */}
         <Card>
           <CardContent className="pt-6">
@@ -330,15 +414,40 @@ function InterviewLobbyContent() {
                 onClick={startInterview}
                 size="lg"
                 className="flex items-center mx-auto"
-                disabled={!mediaPermissions.camera || !mediaPermissions.microphone}
+                disabled={
+                  !mediaPermissions.camera || 
+                  !mediaPermissions.microphone ||
+                  capturingLocation
+                }
               >
-                Start Interview
-                <ArrowRight className="h-4 w-4 ml-2" />
+                {capturingLocation ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Preparing...
+                  </>
+                ) : (
+                  <>
+                    Start Interview
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
 
               {(!mediaPermissions.camera || !mediaPermissions.microphone) && (
                 <p className="text-sm text-red-600 mt-4">
                   Please grant camera and microphone permissions to continue
+                </p>
+              )}
+
+              {faceVerified && (
+                <p className="text-sm text-green-600 mt-2">
+                  ✓ Face verification completed
+                </p>
+              )}
+
+              {locationData && (
+                <p className="text-sm text-green-600 mt-2">
+                  ✓ Location captured
                 </p>
               )}
             </div>

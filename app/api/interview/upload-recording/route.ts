@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BlobServiceClient } from '@azure/storage-blob';
 import { db } from '@/lib/database/connection';
-import { candidateInterviewHistory, campaignInterviews } from '@/lib/database/schema';
+import { candidateResults, campaignInterviews } from '@/lib/database/schema';
 import { eq, and } from 'drizzle-orm';
 
 // Azure Blob Storage configuration
@@ -106,9 +106,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Try to update candidateInterviewHistory first
+        // Try to update candidateResults first
         const historyUpdate = await db
-          .update(candidateInterviewHistory)
+          .update(candidateResults)
           .set({
             recordingUrl: recordingUrl,
             feedback: parsedAnswers ? JSON.stringify(parsedAnswers) : null,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
             status: 'completed',
             updatedAt: new Date(),
           })
-          .where(eq(candidateInterviewHistory.interviewId, interviewId))
+          .where(eq(candidateResults.interviewId, interviewId))
           .returning();
 
         // If no rows affected, try campaignInterviews table

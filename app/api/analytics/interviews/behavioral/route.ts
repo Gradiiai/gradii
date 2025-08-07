@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/database/connection";
-import { Interview, InterviewAnalytics, candidateInterviewHistory, candidateUsers } from "@/lib/database/schema";
+import { Interview, InterviewAnalytics, candidateResults, candidateUsers } from "@/lib/database/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { generateJSONWithOpenAI, AI_CONFIGS } from "@/lib/integrations/ai/openai";
 
@@ -70,34 +70,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch completed behavioral interviews from candidateInterviewHistory
-    const behavioralInterviews = await db
-      .select({
-        historyId: candidateInterviewHistory.id,
-        interviewId: candidateInterviewHistory.interviewId,
-        interviewType: candidateInterviewHistory.interviewType,
-        candidateId: candidateInterviewHistory.candidateId,
-        feedback: candidateInterviewHistory.feedback,
-        score: candidateInterviewHistory.score,
-        maxScore: candidateInterviewHistory.maxScore,
-        duration: candidateInterviewHistory.duration,
-        completedAt: candidateInterviewHistory.completedAt,
-        candidateEmail: candidateUsers.email,
-        candidateName: candidateUsers.firstName
-      })
-      .from(candidateInterviewHistory)
-      .innerJoin(candidateUsers, eq(candidateInterviewHistory.candidateId, candidateUsers.id))
-      .where(
-        and(
-          eq(candidateInterviewHistory.interviewType, 'behavioral'),
-          eq(candidateInterviewHistory.status, 'completed')
-        )
+    // Fetch completed behavioral interviews from candidateResults
+    const completedInterviews = await db.select({
+      // Interview history data
+      historyId: candidateResults.id,
+      interviewId: candidateResults.interviewId,
+      interviewType: candidateResults.interviewType,
+      candidateId: candidateResults.candidateId,
+      feedback: candidateResults.feedback,
+      score: candidateResults.score,
+      maxScore: candidateResults.maxScore,
+      duration: candidateResults.duration,
+      completedAt: candidateResults.completedAt,
+      // Candidate data
+      candidateName: candidateUsers.firstName,
+      candidateEmail: candidateUsers.email,
+    })
+    .from(candidateResults)
+    .innerJoin(candidateUsers, eq(candidateResults.candidateId, candidateUsers.id))
+    .where(
+      and(
+        eq(candidateResults.interviewType, 'behavioral'),
+        eq(candidateResults.status, 'completed')
       )
-      .orderBy(desc(candidateInterviewHistory.completedAt));
+    )
+    .orderBy(desc(candidateResults.completedAt));
 
     const analyticsData: BehavioralAnalytics[] = [];
 
-    for (const interviewHistory of behavioralInterviews) {
+    for (const interviewHistory of completedInterviews) {
       if (!interviewHistory.feedback) continue;
 
       let feedbackData: any;
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
 
       if (answersArray.length === 0) continue;
 
-      // Calculate metrics from candidateInterviewHistory data
+      // Calculate metrics from candidateResults data
       const totalQuestions = interviewHistory.maxScore || answersArray.length;
       const answeredQuestions = answersArray.filter((answer: any) => 
         answer && (typeof answer === 'string' ? answer.trim().length > 0 : 
@@ -202,7 +203,7 @@ export async function GET(request: NextRequest) {
 }
 
 function calculateBehavioralScoresFromHistory(questionWiseResults: any[], actualScore: number, maxScore: number) {
-  // Calculate scores based on candidateInterviewHistory data and question analysis
+  // Calculate scores based on candidateResults data and question analysis
   const scores = {
     communication: 0,
     leadership: 0,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/database/connection";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
-import { Interview, candidateInterviewHistory } from "@/lib/database/schema";
+import { Interview, candidateResults } from "@/lib/database/schema";
 import { generateJSONWithOpenAI, AI_CONFIGS } from "@/lib/integrations/ai/openai";
 
 
@@ -109,11 +109,11 @@ export async function GET(request: NextRequest) {
     const analyticsData: ComboAnalytics[] = [];
 
     for (const interview of comboInterviews) {
-      // Get all answers from candidateInterviewHistory
-      const allAnswers = await db
-        .select()
-        .from(candidateInterviewHistory)
-        .where(eq(candidateInterviewHistory.interviewId, interview.interviewId));
+      // Get all answers from candidateResults
+    const allAnswers = await db
+      .select()
+      .from(candidateResults)
+      .where(eq(candidateResults.interviewId, interview.interviewId));
 
       // Separate behavioral/MCQ and coding answers
       const behavioralMcqAnswers = allAnswers.filter(answer => answer.interviewType === 'mcq');
@@ -181,7 +181,7 @@ export async function GET(request: NextRequest) {
           codeAnswers.reduce((sum, a) => sum + (a.score || 0), 0) / codeAnswers.length
         ) : 0,
         timeSpent: codeAnswers.length * 1800, // 30 min default per problem
-        languageUsed: 'JavaScript' // Default language as it's not stored in candidateInterviewHistory
+        languageUsed: 'JavaScript' // Default language as it's not stored in candidateResults
       };
 
       // Calculate overall metrics

@@ -1,5 +1,5 @@
 import { db } from "@/lib/database/connection";
-import { InterviewAnalytics, Interview, CodingInterview, candidateInterviewHistory, candidateUsers } from "@/lib/database/schema";
+import { InterviewAnalytics, Interview, CodingInterview, candidateResults, candidateUsers } from "@/lib/database/schema";
 import { eq, and } from "drizzle-orm";
 
 export interface CreateAnalyticsData {
@@ -134,7 +134,7 @@ export async function markInterviewCompleted(
 
 /**
  * Check if interview should be auto-completed and mark it as such
- * Updated to use candidateInterviewHistory instead of legacy tables
+ * Updated to use candidateResults instead of legacy tables
  */
 export async function checkAndAutoCompleteInterview(
   interviewId: string,
@@ -156,14 +156,14 @@ export async function checkAndAutoCompleteInterview(
 
     const candidate = candidateUser[0];
 
-    // Check if interview is already completed in candidateInterviewHistory
+    // Check if interview is already completed in candidateResults
     const historyRecord = await db
       .select()
-      .from(candidateInterviewHistory)
+      .from(candidateResults)
       .where(
         and(
-          eq(candidateInterviewHistory.candidateId, candidate.id),
-          eq(candidateInterviewHistory.interviewId, interviewId)
+          eq(candidateResults.candidateId, candidate.id),
+          eq(candidateResults.interviewId, interviewId)
         )
       )
       .limit(1);
@@ -268,15 +268,15 @@ export async function checkAndAutoCompleteInterview(
       }
     }
 
-    // Update candidateInterviewHistory and analytics if completed
+    // Update candidateResults and analytics if completed
     if (shouldComplete && history.status !== 'completed') {
       await db
-        .update(candidateInterviewHistory)
+        .update(candidateResults)
         .set({ 
           status: 'completed',
           completedAt: new Date()
         })
-        .where(eq(candidateInterviewHistory.id, history.id));
+        .where(eq(candidateResults.id, history.id));
 
       await markInterviewCompleted(interviewId, history.score || undefined);
       console.log(`Auto-completed ${interviewType} interview ${interviewId}`);

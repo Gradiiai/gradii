@@ -25,7 +25,7 @@ export const Interview = pgTable("interview", {
   interviewType: varchar("interviewType", { length: 50 }).default("behavioral"),
 });
 
-// UserAnswer table removed - migrated to candidateInterviewHistory.feedback
+// UserAnswer table removed - migrated to candidateResults.feedback
 
 export const CodingInterview = pgTable("coding_interview", {
   id: serial("id").primaryKey(),
@@ -49,7 +49,7 @@ export const CodingInterview = pgTable("coding_interview", {
   linkExpiryTime: timestamp("linkExpiryTime"),
 });
 
-// UserCodeAnswer table removed - migrated to candidateInterviewHistory.feedback
+// UserCodeAnswer table removed - migrated to candidateResults.feedback
 
 export const InterviewAnalytics = pgTable("interview_analytics", {
   id: serial("id").primaryKey(),
@@ -982,8 +982,8 @@ export const candidateApplications = pgTable("candidate_applications", {
   withdrawnReason: text("withdrawn_reason"),
 });
 
-// Candidate Interview History
-export const candidateInterviewHistory = pgTable("candidate_interview_history", {
+// Candidate Results 
+export const candidateResults = pgTable("candidate_results", {
   id: uuid("id").defaultRandom().primaryKey(),
   candidateId: uuid("candidate_id").notNull().references(() => candidateUsers.id, { onDelete: "cascade" }),
   applicationId: uuid("application_id").references(() => candidateApplications.id, { onDelete: "cascade" }), // Optional for direct interviews
@@ -999,17 +999,27 @@ export const candidateInterviewHistory = pgTable("candidate_interview_history", 
   score: integer("score"),
   maxScore: integer("max_score"),
   passed: boolean("passed"),
-  feedback: text("feedback"), // Feedback visible to candidate
   programmingLanguage: varchar("programming_language", { length: 100 }), // For coding interviews
   internalNotes: text("internal_notes"), // Internal recruiter notes
   candidateExperience: text("candidate_experience"), // Candidate's feedback about interview
-  candidateRating: integer("candidate_rating"), // 1-5 rating of interview experience
+  candidateRating: integer("candidate_rating"), // 1-5 rating of interview experience 
+  feedback: text("feedback"), // Feedback visible to candidate
   interviewerName: varchar("interviewer_name", { length: 255 }),
   interviewerEmail: varchar("interviewer_email", { length: 255 }),
   recordingUrl: varchar("recording_url", { length: 500 }),
   interviewLink: varchar("interview_link", { length: 1000 }),
   preparationMaterials: text("preparation_materials"), // JSON of prep materials
   nextSteps: text("next_steps"),
+  
+  // Enhanced fields for better results tracking
+  detailedAnalysis: jsonb("detailed_analysis"), // AI analysis results from interview-scoring.ts
+  questionAnswers: jsonb("question_answers"), // All question-answer pairs
+  scoreBreakdown: jsonb("score_breakdown"), // Detailed scoring breakdown
+  candidateLocation: varchar("candidate_location", { length: 255 }), // Captured location
+  candidateIP: varchar("candidate_ip", { length: 45 }), // IPv4/IPv6 address
+  faceVerificationData: jsonb("face_verification_data"), // Face recognition results
+  sessionMetadata: jsonb("session_metadata"), // Redis session data backup
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -1035,62 +1045,3 @@ export const candidateNotifications = pgTable("candidate_notifications", {
 });
 
 // Removed: candidateSessions table - now using Redis for session storage via NextAuth adapter
-
-// Candidate Documents (Resume Versions, Certificates, Portfolio)
-export const candidateDocuments = pgTable("candidate_documents", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  candidateId: uuid("candidate_id").notNull().references(() => candidateUsers.id, { onDelete: "cascade" }),
-  documentType: varchar("document_type", { length: 100 }).notNull(), // resume, cover_letter, certificate, portfolio, etc.
-  documentName: varchar("document_name", { length: 255 }).notNull(),
-  originalFileName: varchar("original_file_name", { length: 255 }).notNull(),
-  fileUrl: varchar("file_url", { length: 500 }).notNull(),
-  fileSize: integer("file_size").notNull(), // in bytes
-  fileType: varchar("file_type", { length: 100 }).notNull(), // pdf, doc, jpg, etc.
-  version: integer("version").default(1),
-  isDefault: boolean("is_default").default(false), // default resume/cover letter
-  isPublic: boolean("is_public").default(true),
-  description: text("description"),
-  tags: text("tags"), // JSON array of tags
-  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  expiresAt: timestamp("expires_at"), // for temporary documents
-  downloadCount: integer("download_count").default(0),
-  lastDownloadedAt: timestamp("last_downloaded_at"),
-  metadata: jsonb("metadata"), // parsed resume data, etc.
-});
-
-// Candidate Preferences (Interview, Availability, Communication)
-export const candidatePreferences = pgTable("candidate_preferences", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  candidateId: uuid("candidate_id").notNull().references(() => candidateUsers.id, { onDelete: "cascade" }).unique(),
-  // Interview Preferences
-  preferredInterviewTimes: text("preferred_interview_times"), // JSON with time slots
-  timeZone: varchar("time_zone", { length: 100 }).default("UTC"),
-  interviewModePreference: varchar("interview_mode_preference", { length: 50 }).default("any"), // video, phone, in_person, any
-  maxInterviewDuration: integer("max_interview_duration").default(60), // minutes
-  // Communication Preferences
-  emailNotifications: boolean("email_notifications").default(true),
-  smsNotifications: boolean("sms_notifications").default(false),
-  pushNotifications: boolean("push_notifications").default(true),
-  marketingEmails: boolean("marketing_emails").default(false),
-  weeklyDigest: boolean("weekly_digest").default(true),
-  // Job Preferences
-  jobAlerts: boolean("job_alerts").default(true),
-  preferredJobTypes: text("preferred_job_types"), // JSON array: full_time, part_time, contract, etc.
-  preferredWorkModes: text("preferred_work_modes"), // JSON array: remote, hybrid, onsite
-  preferredLocations: text("preferred_locations"), // JSON array of preferred locations
-  salaryExpectations: text("salary_expectations"), // JSON with min/max by currency
-  // Privacy Preferences
-  profileVisibility: varchar("profile_visibility", { length: 20 }).default("public"), // public, private, recruiters_only
-  allowRecruiterContact: boolean("allow_recruiter_contact").default(true),
-  showSalaryExpectations: boolean("show_salary_expectations").default(true),
-  // Availability
-  availabilityStatus: varchar("availability_status", { length: 50 }).default("open"), // open, passive, not_looking
-  availableStartDate: timestamp("available_start_date"),
-  noticePeriod: integer("notice_period"), // in days
-  // Technical Preferences
-  preferredLanguage: varchar("preferred_language", { length: 10 }).default("en"),
-  accessibilityNeeds: text("accessibility_needs"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});

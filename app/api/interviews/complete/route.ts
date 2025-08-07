@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/database/connection";
-// UserAnswer import removed - migrated to candidateInterviewHistory
+// UserAnswer import removed - migrated to candidateResults
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/auth";
 import { markInterviewCompleted } from "@/lib/services/analytics";
-import { Interview, candidates, candidateInterviewHistory, CodingInterview } from "@/lib/database/schema";
+import { Interview, candidates, candidateResults, CodingInterview } from "@/lib/database/schema";
 
 // POST - Mark interview as completed
 export async function POST(req: NextRequest) {

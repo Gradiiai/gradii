@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { auth } from '@/auth';
-import { Interview, candidateInterviewHistory } from '@/lib/database/schema';
+import { Interview, candidateResults } from '@/lib/database/schema';
 
 interface MCQAnalytics {
   id: string;
@@ -75,16 +75,16 @@ export async function GET(request: NextRequest) {
 
     for (const interview of mcqInterviews) {
       try {
-        // Get user answers for this interview from candidateInterviewHistory table
-        const userAnswers = await db
-          .select()
-          .from(candidateInterviewHistory)
-          .where(
-            and(
-              eq(candidateInterviewHistory.interviewId, interview.interviewId),
-              eq(candidateInterviewHistory.interviewType, 'mcq')
-            )
-          );
+        // Get user answers for this interview from candidateResults table
+    const userAnswers = await db
+      .select()
+      .from(candidateResults)
+      .where(
+        and(
+          eq(candidateResults.interviewId, interview.interviewId),
+          eq(candidateResults.interviewType, 'mcq')
+        )
+      );
 
         // Skip if no answers found
         if (userAnswers.length === 0) continue;

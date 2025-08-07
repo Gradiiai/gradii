@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/database/connection";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "@/auth";
-import { Interview, candidateInterviewHistory } from "@/lib/database/schema";
+import { Interview, candidateResults, CodingInterview } from "@/lib/database/schema";
 import { generateJSONWithOpenAI, AI_CONFIGS } from "@/lib/integrations/ai/openai";
 
 interface CodingAnalytics {
@@ -71,15 +71,29 @@ export async function GET(request: NextRequest) {
 
     // Fetch coding Interview for the company
     const codingInterviews = await db
-      .select()
-      .from(Interview)
+      .select({
+        id: candidateResults.id,
+        interviewId: candidateResults.interviewId,
+        score: candidateResults.score,
+        maxScore: candidateResults.maxScore,
+        duration: candidateResults.duration,
+        completedAt: candidateResults.completedAt,
+        feedback: candidateResults.feedback,
+        passed: candidateResults.passed,
+        candidateName: CodingInterview.candidateName,
+        candidateEmail: CodingInterview.candidateEmail,
+        jobPosition: sql<string>`'Software Developer'`.as('jobPosition'),
+        createdAt: CodingInterview.createdAt,
+      })
+      .from(candidateResults)
+      .innerJoin(CodingInterview, eq(candidateResults.interviewId, CodingInterview.interviewId))
       .where(
         and(
-          eq(Interview.companyId, companyId),
-          eq(Interview.interviewType, 'coding')
+          eq(candidateResults.interviewType, "coding"),
+          eq(candidateResults.status, "completed")
         )
       )
-      .orderBy(desc(Interview.createdAt));
+      .orderBy(desc(candidateResults.completedAt));
 
     const analyticsData: CodingAnalytics[] = [];
 
@@ -87,11 +101,11 @@ export async function GET(request: NextRequest) {
       // Get user code answers for this interview
       const userAnswers = await db
         .select()
-        .from(candidateInterviewHistory)
+        .from(candidateResults)
         .where(
           and(
-            eq(candidateInterviewHistory.interviewId, interview.id.toString()),
-            eq(candidateInterviewHistory.interviewType, 'coding')
+            eq(candidateResults.interviewId, interview.id.toString()),
+            eq(candidateResults.interviewType, 'coding')
           )
         );
 

@@ -14,7 +14,7 @@ import { Play, FileCode, Settings2, Undo2, Redo2, Camera } from "lucide-react";
 import { undo, redo } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { db } from "@/lib/database/connection";
-import { candidateInterviewHistory, CodingInterview } from "@/lib/database/schema";
+import { candidateResults, CodingInterview } from "@/lib/database/schema";
 import { and, eq } from "drizzle-orm";
 import { checkAndAutoCompleteInterview } from "@/lib/services/analytics";
 import { formatCode } from "@/lib/formatter";
@@ -97,12 +97,12 @@ export default function CodingInterviewPage({
       try {
         const existingAnswers = await db
           .select()
-          .from(candidateInterviewHistory)
+          .from(candidateResults)
           .where(
             and(
-              eq(candidateInterviewHistory.interviewId, interviewId),
-              eq(candidateInterviewHistory.candidateId, session?.user?.id ?? ''),
-              eq(candidateInterviewHistory.interviewType, 'coding')
+              eq(candidateResults.interviewId, interviewId),
+              eq(candidateResults.candidateId, session?.user?.id ?? ''),
+              eq(candidateResults.interviewType, 'coding')
             )
           );
 
@@ -238,7 +238,7 @@ export default function CodingInterviewPage({
         if (existingAnswer) {
           // Update existing answer
           await db
-            .update(candidateInterviewHistory)
+            .update(candidateResults)
             .set({
               feedback: JSON.stringify({
                 question: currentQuestion,
@@ -251,14 +251,14 @@ export default function CodingInterviewPage({
             })
             .where(
               and(
-                eq(candidateInterviewHistory.interviewId, interviewId),
-                eq(candidateInterviewHistory.candidateId, session?.user?.id ?? ''),
-                eq(candidateInterviewHistory.interviewType, 'coding')
+                eq(candidateResults.interviewId, interviewId),
+                eq(candidateResults.candidateId, session?.user?.id ?? ''),
+                eq(candidateResults.interviewType, 'coding')
               )
             );
         } else {
           // Insert new answer
-          await db.insert(candidateInterviewHistory).values({
+          await db.insert(candidateResults).values({
             interviewId: interviewId,
             candidateId: session?.user?.id ?? '',
             interviewType: 'coding',

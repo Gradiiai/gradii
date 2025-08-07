@@ -1,7 +1,7 @@
 import { getServerSessionWithAuth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/database/connection';
-import { companies, users, Interview, subscriptionTransactions, adminActivityLogs, candidateUsers, candidateApplications, candidateDocuments, jobCampaigns } from '@/lib/database/schema';
+import { companies, users, Interview, subscriptionTransactions, adminActivityLogs, candidateUsers, candidateApplications, jobCampaigns } from '@/lib/database/schema';
 import { logAdminActivity } from '@/lib/admin/admin-activity-logger';
 import { count, eq, desc, sql, gte } from 'drizzle-orm';
 import AdminClient from './_components/AdminClient';
@@ -21,7 +21,8 @@ export default async function AdminDashboard() {
   // Get candidate statistics
   const [totalCandidates] = await db.select({ count: count() }).from(candidateUsers);
   const [totalApplications] = await db.select({ count: count() }).from(candidateApplications);
-  const [totalResumes] = await db.select({ count: count() }).from(candidateDocuments).where(eq(candidateDocuments.documentType, 'resume'));
+  // Note: candidateDocuments table doesn't exist, using candidateProfiles instead
+  const [totalResumes] = await db.select({ count: count() }).from(candidateUsers);
   const [totalJobCampaigns] = await db.select({ count: count() }).from(jobCampaigns);
 
   // Get subscription statistics

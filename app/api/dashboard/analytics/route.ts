@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/lib/database/db';
-import { Interview, CodingInterview, InterviewAnalytics, candidateUsers, companies, jobCampaigns, candidates, candidateApplications, candidateInterviewHistory } from '@/lib/database/schema';
+import { Interview, CodingInterview, InterviewAnalytics, candidateUsers, companies, jobCampaigns, candidates, candidateApplications, candidateResults } from '@/lib/database/schema';
 import { eq, and, gte, desc, count, avg, sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
@@ -24,40 +24,39 @@ export async function GET(request: NextRequest) {
     dateThreshold.setDate(dateThreshold.getDate() - timeRange);
 
     // Get all interview history for the company
-    const interviewHistoryQuery = db
-      .select({
-        id: candidateInterviewHistory.id,
-        interviewId: candidateInterviewHistory.interviewId,
-        candidateId: candidateInterviewHistory.candidateId,
-        status: candidateInterviewHistory.status,
-        score: candidateInterviewHistory.score,
-        maxScore: candidateInterviewHistory.maxScore,
-        duration: candidateInterviewHistory.duration,
-        feedback: candidateInterviewHistory.feedback,
-        startedAt: candidateInterviewHistory.startedAt,
-        completedAt: candidateInterviewHistory.completedAt,
+    const recentInterviews = await db.select({
+      id: candidateResults.id,
+      interviewId: candidateResults.interviewId,
+      candidateId: candidateResults.candidateId,
+      status: candidateResults.status,
+      score: candidateResults.score,
+      maxScore: candidateResults.maxScore,
+      duration: candidateResults.duration,
+      feedback: candidateResults.feedback,
+      startedAt: candidateResults.startedAt,
+      completedAt: candidateResults.completedAt,
         candidateName: sql<string>`CONCAT(${candidateUsers.firstName}, ' ', ${candidateUsers.lastName})`,
         candidateEmail: candidateUsers.email,
         interviewType: sql<string>`COALESCE(${Interview.interviewType}, ${CodingInterview.interviewTopic}, 'unknown')`,
         interviewTitle: sql<string>`COALESCE(${Interview.jobPosition}, ${CodingInterview.interviewTopic}, 'Interview')`,
         campaignTitle: jobCampaigns.campaignName,
         candidateStatus: sql<string>`COALESCE(${candidates.status}, ${candidateApplications.status}, 'pending')`})
-      .from(candidateInterviewHistory)
-      .leftJoin(candidateUsers, eq(candidateInterviewHistory.candidateId, candidateUsers.id))
-      .leftJoin(Interview, eq(candidateInterviewHistory.interviewId, Interview.interviewId))
-      .leftJoin(CodingInterview, eq(candidateInterviewHistory.interviewId, CodingInterview.interviewId))
+      .from(candidateResults)
+      .leftJoin(candidateUsers, eq(candidateResults.candidateId, candidateUsers.id))
+      .leftJoin(Interview, eq(candidateResults.interviewId, Interview.interviewId))
+      .leftJoin(CodingInterview, eq(candidateResults.interviewId, CodingInterview.interviewId))
       .leftJoin(jobCampaigns, eq(Interview.campaignId, jobCampaigns.id))
-      .leftJoin(candidates, eq(candidateInterviewHistory.candidateId, candidates.id))
-      .leftJoin(candidateApplications, eq(candidateInterviewHistory.candidateId, candidateApplications.candidateId))
+      .leftJoin(candidates, eq(candidateResults.candidateId, candidates.id))
+      .leftJoin(candidateApplications, eq(candidateResults.candidateId, candidateApplications.candidateId))
       .where(
         and(
           sql`(${Interview.companyId} = ${companyId} OR ${CodingInterview.companyId} = ${companyId})`,
-          gte(candidateInterviewHistory.completedAt, dateThreshold)
+          gte(candidateResults.completedAt, dateThreshold)
         )
       )
-      .orderBy(desc(candidateInterviewHistory.completedAt));
+      .orderBy(desc(candidateResults.completedAt));
 
-    const interviewHistory = await interviewHistoryQuery;
+    const interviewHistory = recentInterviews;
 
     // Filter by interview type if specified
     const filteredHistory = interviewType === 'all' 
@@ -162,7 +161,7 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {} as Record<string, any>);
 
-    const performanceByType = Object.entries(typeGroups).map(([type, data]) => ({
+    const performanceByType = Object.entries(typeGroups).map(([type, data]: [string, any]) => ({
       type,
       averageScore: data.maxScore > 0 ? (data.totalScore / data.maxScore) * 100 : 0,
       completionRate: data.total > 0 ? (data.completed / data.total) * 100 : 0,

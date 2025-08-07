@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database/connection';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { auth } from '@/auth';
-import { Interview, candidateInterviewHistory } from '@/lib/database/schema';
+import { Interview, candidateResults } from '@/lib/database/schema';
 import { generateJSONWithOpenAI, AI_CONFIGS } from "@/lib/integrations/ai/openai";
 
 interface CodingAnalytics {
@@ -75,11 +75,11 @@ export async function GET(request: NextRequest) {
     const analyticsData: CodingAnalytics[] = [];
 
     for (const interview of codingInterviews) {
-      // Get code answers for this interview from candidateInterviewHistory
-      const codeAnswers = await db
-        .select()
-        .from(candidateInterviewHistory)
-        .where(eq(candidateInterviewHistory.interviewId, interview.interviewId));
+      // Get code answers for this interview from candidateResults
+    const codeAnswers = await db
+      .select()
+      .from(candidateResults)
+      .where(eq(candidateResults.interviewId, interview.interviewId));
 
       if (codeAnswers.length === 0) continue;
 
@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         candidateName: interview.candidateName || 'Unknown',
         candidateEmail: interview.candidateEmail || 'unknown@example.com',
         jobPosition: interview.jobPosition || 'Position',
-        language: 'JavaScript', // Default language since not stored in candidateInterviewHistory
+        language: 'JavaScript', // Default language since not stored in candidateResults
         totalProblems,
         solvedProblems,
         jobDescription: interview.jobDescription || 'Job Description',

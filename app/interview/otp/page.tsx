@@ -14,6 +14,7 @@ function OTPVerificationContent() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
 
@@ -95,7 +96,7 @@ function OTPVerificationContent() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email, interviewId })
+        body: JSON.stringify({ email })
       });
 
       if (!response.ok) {
@@ -108,6 +109,9 @@ function OTPVerificationContent() {
       if (data.success) {
         setTimeLeft(300); // Reset timer
         setOtp(''); // Clear current OTP
+        setError(null);
+        setSuccess('New verification code sent successfully!');
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         throw new Error(data.error || 'Failed to resend OTP');
       }
@@ -161,6 +165,12 @@ function OTPVerificationContent() {
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {success && (
+              <Alert className="border-green-200 bg-green-50">
+                <AlertDescription className="text-green-800">{success}</AlertDescription>
               </Alert>
             )}
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/lib/database/connection";
-import { Interview, CodingInterview, InterviewAnalytics, candidateInterviewHistory } from "@/lib/database/schema";
+import { Interview, CodingInterview, InterviewAnalytics, candidateResults } from "@/lib/database/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 
@@ -190,14 +190,14 @@ export async function POST(
       // Check if candidate interview history record exists
       const existingHistory = await db
         .select()
-        .from(candidateInterviewHistory)
-        .where(eq(candidateInterviewHistory.interviewId, id))
+        .from(candidateResults)
+        .where(eq(candidateResults.interviewId, id))
         .limit(1);
 
       if (existingHistory.length > 0) {
         // Update existing record
         await db
-          .update(candidateInterviewHistory)
+          .update(candidateResults)
           .set({
             status: 'completed',
             completedAt: new Date(),
@@ -207,10 +207,10 @@ export async function POST(
             duration: totalTimeSpent || 0,
             passed: completionRate >= 60
           })
-          .where(eq(candidateInterviewHistory.interviewId, id));
+          .where(eq(candidateResults.interviewId, id));
       } else {
         // Create new record if it doesn't exist
-        await db.insert(candidateInterviewHistory).values({
+        await db.insert(candidateResults).values({
           interviewId: id,
           candidateId: candidateEmail || 'unknown', // Use email as fallback ID
           interviewType: interviewType,

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import { db } from '@/lib/database/connection';
 import { otpCodes } from '@/lib/database/schema';
 import { eq, and, gte, isNull } from 'drizzle-orm';
+import { RedisSessionManager, setSessionCookie, getClientIP, getLocationFromIP } from '@/lib/auth/redis-session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,17 +49,21 @@ export async function POST(request: NextRequest) {
 
     console.log(`OTP verified for ${email}: ${otp}`);
 
-    // Create a secure interview session token
-    const interviewToken = jwt.sign(
-      {
-        email,
-        purpose: 'interview_access',
-        verified: true,
-        timestamp: Date.now()
-      },
-      process.env.AUTH_SECRET || 'fallback-secret',
-      { expiresIn: '4h' } // Interview sessions expire in 4 hours
-    );
+    // Get client information for enhanced security
+    const clientIP = await getClientIP(request);
+    const candidateLocation = await getLocationFromIP(clientIP);
+    const userAgent = request.headers.get('user-agent') || 'Unknown';
+
+    // Create Redis session with client information
+    const sessionId = await RedisSessionManager.createSession(email, {
+      candidateLocation: candidateLocation || undefined,
+      candidateIP: clientIP,
+      userAgent,
+      metadata: {
+        otpVerifiedAt: new Date().toISOString(),
+        verificationIP: clientIP,
+      }
+    });
 
     // Create response and set secure cookie
     const response = NextResponse.json({ 
@@ -68,13 +72,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set secure HTTP-only cookie for interview access
-    response.cookies.set('interview-session', interviewToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 4, // 4 hours
-      path: '/'
-    });
+    setSessionCookie(response, sessionId);
 
     return response;
 

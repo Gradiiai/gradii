@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { db } from '@/lib/database/connection';
-import { candidateInterviewHistory, 
+import { candidateResults, 
   candidateUsers,
   candidateApplications,
   jobCampaigns,
@@ -22,22 +22,22 @@ export async function GET(
     const { id } = await params;
     console.log(`Fetching individual interview results for ID: ${id}, Company: ${session.user.companyId}`);
 
-    // Primary approach: Look in candidateInterviewHistory with proper company access control
-    const candidateHistory = await db
+    // Primary approach: Look in candidateResults with proper company access control
+    const interviewResults = await db
       .select({
-        // Interview History fields
-        historyId: candidateInterviewHistory.id,
-        interviewId: candidateInterviewHistory.interviewId,
-        interviewType: candidateInterviewHistory.interviewType,
-        status: candidateInterviewHistory.status,
-        score: candidateInterviewHistory.score,
-        maxScore: candidateInterviewHistory.maxScore,
-        duration: candidateInterviewHistory.duration,
-        feedback: candidateInterviewHistory.feedback,
-        completedAt: candidateInterviewHistory.completedAt,
-        startedAt: candidateInterviewHistory.startedAt,
-        passed: candidateInterviewHistory.passed,
-        programmingLanguage: candidateInterviewHistory.programmingLanguage,
+        // Core interview data
+        historyId: candidateResults.id,
+        interviewId: candidateResults.interviewId,
+        interviewType: candidateResults.interviewType,
+        status: candidateResults.status,
+        score: candidateResults.score,
+        maxScore: candidateResults.maxScore,
+        duration: candidateResults.duration,
+        feedback: candidateResults.feedback,
+        completedAt: candidateResults.completedAt,
+        startedAt: candidateResults.startedAt,
+        passed: candidateResults.passed,
+        programmingLanguage: candidateResults.programmingLanguage,
         
         // Candidate info
         candidateId: candidateUsers.id,
@@ -45,7 +45,7 @@ export async function GET(
         candidateEmail: candidateUsers.email,
         
         // Campaign info (for campaign-based interviews)
-        applicationId: candidateInterviewHistory.applicationId,
+        applicationId: candidateResults.applicationId,
         campaignId: jobCampaigns.id,
         campaignName: jobCampaigns.campaignName,
         jobTitle: jobCampaigns.jobTitle,
@@ -59,19 +59,19 @@ export async function GET(
         directProgrammingLanguage: CodingInterview.programmingLanguage,
         directDifficultyLevel: CodingInterview.difficultyLevel
       })
-      .from(candidateInterviewHistory)
-      .innerJoin(candidateUsers, eq(candidateInterviewHistory.candidateId, candidateUsers.id))
-      .leftJoin(candidateApplications, eq(candidateInterviewHistory.applicationId, candidateApplications.id))
+      .from(candidateResults)
+      .innerJoin(candidateUsers, eq(candidateResults.candidateId, candidateUsers.id))
+      .leftJoin(candidateApplications, eq(candidateResults.applicationId, candidateApplications.id))
       .leftJoin(jobCampaigns, eq(candidateApplications.campaignId, jobCampaigns.id))
       .leftJoin(companies, eq(jobCampaigns.companyId, companies.id))
-      .leftJoin(Interview, eq(candidateInterviewHistory.interviewId, Interview.interviewId))
-      .leftJoin(CodingInterview, eq(candidateInterviewHistory.interviewId, CodingInterview.interviewId))
+      .leftJoin(Interview, eq(candidateResults.interviewId, Interview.interviewId))
+      .leftJoin(CodingInterview, eq(candidateResults.interviewId, CodingInterview.interviewId))
       .where(and(
         or(
-          eq(candidateInterviewHistory.id, id),
-          eq(candidateInterviewHistory.interviewId, id)
+          eq(candidateResults.id, id),
+          eq(candidateResults.interviewId, id)
         ),
-        eq(candidateInterviewHistory.status, 'completed'),
+        eq(candidateResults.status, 'completed'),
         // Ensure user can only see results from their company
         or(
           eq(companies.id, session.user.companyId), // Campaign interviews
@@ -81,12 +81,12 @@ export async function GET(
       ))
       .limit(1);
 
-    if (candidateHistory.length === 0) {
-      console.log(`No interview found in candidateInterviewHistory for ID: ${id}`);
+    if (interviewResults.length === 0) {
+      console.log(`No interview found in candidateResults for ID: ${id}`);
       return NextResponse.json({ error: 'Interview not found' }, { status: 404 });
     }
 
-    const historyRecord = candidateHistory[0];
+    const historyRecord = interviewResults[0];
     console.log(`Found interview: ${historyRecord.interviewType} (${historyRecord.interviewId})`);
 
     // Determine interview source and get correct metadata

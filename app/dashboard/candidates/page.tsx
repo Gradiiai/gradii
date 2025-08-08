@@ -33,7 +33,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle} from "@/components/ui/shared/dialog";
-import DirectInterviewScheduler from "@/components/admin/DirectInterviewScheduler";
+
 import CandidateProfileModal from "@/components/candidate/candidateProfileModal";
 import {
   Search,
@@ -96,6 +96,7 @@ export default function CandidatesPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [selectedUploadCampaign, setSelectedUploadCampaign] = useState<string>("");
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
     null
   );
@@ -270,20 +271,8 @@ export default function CandidatesPage() {
   const handleResumeUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
-    // Ensure we have a campaign to upload to
-    let targetCampaignId = "";
-    if (campaigns.length > 0) {
-      // If a campaign filter is selected, use that campaign
-      if (campaignFilter !== "all") {
-        targetCampaignId = campaignFilter;
-      } else {
-        // If no specific campaign is selected, use the first active campaign
-        const activeCampaign = campaigns.find(c => c.status === 'active') || campaigns[0];
-        targetCampaignId = activeCampaign?.id || "";
-      }
-    }
-
-    if (!targetCampaignId) {
+    // Ensure we have a campaign selected for upload
+    if (!selectedUploadCampaign) {
       toast.error("Please select a campaign before uploading resumes.");
       return;
     }
@@ -295,7 +284,7 @@ export default function CandidatesPage() {
       Array.from(files).forEach((file) => {
         formData.append("resumes", file);
       });
-      formData.append("campaignId", targetCampaignId);
+      formData.append("campaignId", selectedUploadCampaign);
       formData.append("source", "manual_upload");
 
       const response = await fetch("/api/candidates/resumes/upload", {
@@ -315,13 +304,14 @@ export default function CandidatesPage() {
 
       if (response.ok && data.success) {
         const uploadedCount = data.data?.summary?.successful || 0;
-        toast.success(`Successfully uploaded ${uploadedCount} resumes to ${campaigns.find(c => c.id === targetCampaignId)?.campaignName}`);
+        toast.success(`Successfully uploaded ${uploadedCount} resumes to ${campaigns.find(c => c.id === selectedUploadCampaign)?.campaignName}`);
         
         // Give a small delay to show 100% completion before closing
         setTimeout(() => {
           fetchCandidates();
           setShowUpload(false);
           setUploadingResume(false);
+          setSelectedUploadCampaign(""); // Reset campaign selection
         }, 500);
       } else {
         toast.error(data.error || "Failed to upload resumes");
@@ -331,6 +321,15 @@ export default function CandidatesPage() {
       console.error("Error uploading resumes:", error);
       toast.error("Failed to upload resumes");
       setUploadingResume(false);
+    }
+  };
+
+  const handleUploadDialogClose = (open: boolean) => {
+    setShowUpload(open);
+    if (!open) {
+      setSelectedUploadCampaign(""); // Reset campaign selection when dialog closes
+      setSelectedFiles(null);
+      setProgress({});
     }
   };
 
@@ -524,7 +523,8 @@ export default function CandidatesPage() {
     <div className="min-h-screen flex flex-col">
       <div className="container mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-medium">All Candidates</h1>
+          <h1 className="text-xl sm:text-2xl font-medium">Campaign Candidates</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage candidates from your active job campaigns</p>
         </div>
 
         {/* Stats Cards */}
@@ -1010,7 +1010,7 @@ export default function CandidatesPage() {
         </Tabs>
 
 {/* Upload Dialog */}
-        <Dialog open={showUpload} onOpenChange={setShowUpload}>
+        <Dialog open={showUpload} onOpenChange={handleUploadDialogClose}>
           <DialogContent className="sm:max-w-lg bg-white rounded-xl shadow-md p-0 border border-gray-200">
             <div className="p-6">
               <DialogHeader className="mb-6">
@@ -1022,17 +1022,14 @@ export default function CandidatesPage() {
               {/* Campaign Selection Dropdown */}
               <div className="mb-6">
                 <Select
-                  value={campaignFilter === "all" ? "direct" : campaignFilter}
-                  onValueChange={(value) =>
-                    setCampaignFilter(value === "direct" ? "all" : value)
-                  }
+                  value={selectedUploadCampaign}
+                  onValueChange={setSelectedUploadCampaign}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Direct Upload" />
+                    <SelectValue placeholder="Select a campaign" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="direct">Direct Upload</SelectItem>
-                    {campaigns.map((campaign) => (
+                    {campaigns.filter(campaign => campaign.status === 'active').map((campaign) => (
                       <SelectItem key={campaign.id} value={campaign.id}>
                         {campaign.campaignName}
                       </SelectItem>
@@ -1042,12 +1039,12 @@ export default function CandidatesPage() {
               </div>
 
               {/* Campaign Card - Only show if a specific campaign is selected */}
-              {campaignFilter !== "all" &&
-                campaigns.find((c) => c.id === campaignFilter) && (
+              {selectedUploadCampaign &&
+                campaigns.find((c) => c.id === selectedUploadCampaign) && (
                   <div className="mb-6">
                     {(() => {
                       const selectedCampaign = campaigns.find(
-                        (c) => c.id === campaignFilter
+                        (c) => c.id === selectedUploadCampaign
                       );
                       if (!selectedCampaign) return null;
 
@@ -1123,17 +1120,17 @@ export default function CandidatesPage() {
                     onChange={handleFileSelect}
                     className="hidden"
                     id="resume-upload"
-                    disabled={uploadingResume}
+                    disabled={uploadingResume || !selectedUploadCampaign}
                   />
                   <Button
                     variant="outline"
                     onClick={() =>
                       document.getElementById("resume-upload")?.click()
                     }
-                    disabled={uploadingResume}
+                    disabled={uploadingResume || !selectedUploadCampaign}
                     className="bg-white hover:bg-gray-50 text-gray-700 border-gray-300"
                   >
-                    {uploadingResume ? "Uploading..." : "Select Files"}
+                    {uploadingResume ? "Uploading..." : !selectedUploadCampaign ? "Select a campaign first" : "Select Files"}
                   </Button>
                   <p className="text-xs text-gray-500 mt-3">
                     Supported formats: PDF,DOC, DOCX. Maximum file size: 10MB

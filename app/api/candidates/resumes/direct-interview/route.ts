@@ -40,45 +40,25 @@ function validateFile(file: File): { isValid: boolean; errors: string[] } {
   };
 }
 
-// Extract text content from supported formats for direct interview parsing
-// For PDFs, return null to send directly to Gemini (optimal approach)
-// For DOCX/TXT/RTF, extract text first then send to Gemini
+// Extract text from DOCX and TXT files
 async function extractTextFromFile(file: File): Promise<string | null> {
   try {
-    // For PDF files, send directly to Gemini (best performance and accuracy)
-    if (file.type === 'application/pdf') {
-      console.log('PDF file detected - will send directly to Gemini for optimal processing');
-      return null;
-    }
-    
-    // For DOCX files, extract text using mammoth
     if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      console.log('DOCX file detected - extracting text with mammoth');
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const docxResult = await mammoth.extractRawText({ buffer });
       return docxResult.value;
     }
     
-    // For text files, extract content locally
     if (file.type === 'text/plain') {
-      console.log('TXT file detected - extracting text content');
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       return buffer.toString('utf8');
     }
     
-    // For RTF and DOC files, return null to send directly to Gemini
-    if (file.type === 'application/rtf' || file.type === 'text/rtf' || file.type === 'application/msword') {
-      console.log('RTF/DOC file detected - will send directly to Gemini');
-      return null;
-    }
-    
-    // For all other supported files, return null to send directly to Gemini
     return null;
   } catch (error) {
     console.error('Text extraction error:', error);
-    // If extraction fails, return null to try with Gemini directly
     return null;
   }
 }
@@ -123,14 +103,12 @@ REMEMBER: Respond with ONLY the JSON object. No explanations, no apologies, no m
     let parsePromise;
     
     if (textContent) {
-      // For DOCX and TXT files, send extracted text content
-      console.log(`Sending extracted text (${textContent.length} characters) to Gemini for file: ${file.name}`);
+      console.log(`Sending extracted text (${textContent.length} characters) to Gemini`);
       const truncatedContent = textContent.length > 10000 ? textContent.substring(0, 10000) : textContent;
       const fullPrompt = `${prompt}\n\nRESUME CONTENT TO ANALYZE:\n${truncatedContent}`;
       parsePromise = model.generateContent(fullPrompt);
     } else {
-      // For PDF, DOC, RTF and other files, send file directly to Gemini (optimal approach)
-      console.log(`Sending file directly to Gemini for optimal processing: ${file.name} (${file.type})`);
+      console.log(`Sending file directly to Gemini: ${file.name}`);
       const arrayBuffer = await file.arrayBuffer();
       const base64Data = Buffer.from(arrayBuffer).toString('base64');
       

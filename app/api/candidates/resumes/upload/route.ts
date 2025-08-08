@@ -82,20 +82,12 @@ async function uploadResumeFile(file: File, campaignId: string): Promise<string>
   }
 }
 
-// Extract text content from supported formats
-// For PDFs, return null to send directly to Gemini (optimal approach)
-// For DOCX/TXT/RTF, extract text first then send to Gemini
+// Extract text content only from DOCX files using mammoth
+// For all other files, return null so they can be sent directly to Gemini
 async function extractTextFromFile(file: File): Promise<string | null> {
   try {
-    // For PDF files, send directly to Gemini (best performance and accuracy)
-    if (file.type === 'application/pdf') {
-      console.log('PDF file detected - will send directly to Gemini for optimal processing');
-      return null;
-    }
-    
-    // For DOCX files, extract text using mammoth
+    // Only process DOCX files with mammoth, send everything else directly to Gemini
     if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      console.log('DOCX file detected - extracting text with mammoth');
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const docxResult = await mammoth.extractRawText({ buffer });
@@ -104,19 +96,12 @@ async function extractTextFromFile(file: File): Promise<string | null> {
     
     // For text files, extract content locally
     if (file.type === 'text/plain') {
-      console.log('TXT file detected - extracting text content');
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       return buffer.toString('utf8');
     }
     
-    // For RTF and DOC files, return null to send directly to Gemini
-    if (file.type === 'application/rtf' || file.type === 'text/rtf' || file.type === 'application/msword') {
-      console.log('RTF/DOC file detected - will send directly to Gemini');
-      return null;
-    }
-    
-    // For all other supported files, return null to send directly to Gemini
+    // For all other files (PDF, DOC, RTF, etc.), return null to send directly to Gemini
     return null;
   } catch (error) {
     console.error('Text extraction error:', error);
@@ -311,14 +296,14 @@ REMEMBER: Respond with ONLY the JSON object. No explanations, no apologies, no m
     
     if (textContent) {
       // For DOCX and TXT files, send extracted text content
-      console.log(`Sending extracted text (${textContent.length} characters) to Gemini for file: ${file.name}`);
+      console.log(`Sending extracted text (${textContent.length} characters) to Gemini`);
       // Truncate very long content to avoid token limits (keep first 50000 characters)
       const truncatedContent = textContent.length > 50000 ? textContent.substring(0, 50000) + '\n\n[Content truncated due to length]' : textContent;
       const fullPrompt = `${prompt}\n\nRESUME CONTENT TO ANALYZE:\n${truncatedContent}`;
       parsePromise = model.generateContent(fullPrompt);
     } else {
-      // For PDF, DOC, RTF and other files, send file directly to Gemini (optimal approach)
-      console.log(`Sending file directly to Gemini for optimal processing: ${file.name} (${file.type})`);
+      // For PDF, DOC, RTF and other files, send file directly to Gemini
+      console.log(`Sending file directly to Gemini: ${file.name}`);
       const arrayBuffer = await file.arrayBuffer();
       const base64Data = Buffer.from(arrayBuffer).toString('base64');
       
@@ -935,15 +920,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get campaign details for scoring
-    console.log(`Attempting to fetch campaign with ID: ${campaignId}`);
     const campaignResult = await getJobCampaignById(campaignId);
     if (!campaignResult.success || !campaignResult.data) {
-      console.error(`Campaign not found with ID: ${campaignId}. Error: ${campaignResult.error}`);
-      return NextResponse.json({ 
-        error: 'Campaign not found', 
-        campaignId: campaignId,
-        details: 'The specified campaign does not exist or has been deleted. Please refresh the page and try again.'
-      }, { status: 404 });
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
     }
     const campaign = campaignResult.data;
 
@@ -1120,15 +1099,9 @@ export async function POST(request: NextRequest) {
     let targetCampaignId: string | null = campaignId;
     
     if (campaignId && campaignId.trim() !== '') {
-      console.log(`Attempting to fetch campaign with ID: ${campaignId}`);
       const campaignResult = await getJobCampaignById(campaignId);
       if (!campaignResult.success || !campaignResult.data) {
-        console.error(`Campaign not found with ID: ${campaignId}. Error: ${campaignResult.error}`);
-        return NextResponse.json({ 
-          error: 'Campaign not found', 
-          campaignId: campaignId,
-          details: 'The specified campaign does not exist or has been deleted. Please refresh the page and try again.'
-        }, { status: 404 });
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
       }
       campaign = campaignResult.data;
     } else {

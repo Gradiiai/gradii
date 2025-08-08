@@ -1,143 +1,78 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSessionWithAuth } from '@/auth';
-import { db } from '@/lib/database/connection';
-import { candidates, jobCampaigns } from '@/lib/database/schema';
-import { eq, and, or, ilike, desc, count, ne } from 'drizzle-orm';
+import { getAllCandidatesByCompany } from '@/lib/database/queries/campaigns';
 
-// GET - Fetch candidates from campaign-based system (excludes direct interviews)
+/**
+ * GET /api/candidates/campaign-based
+ * Fetch all campaign-based candidates for a company (excludes direct interview candidates)
+ */
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSessionWithAuth();
-    if (!session?.user?.companyId) {
+    
+    if (!session?.user) {
       return NextResponse.json(
-        { error: 'Unauthorized access' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search');
-    const status = searchParams.get('status');
-    const campaignId = searchParams.get('campaignId');
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const companyId = session.user.companyId || searchParams.get('companyId');
+    const status = searchParams.get('status') || undefined;
+    const search = searchParams.get('search') || undefined;
+    const campaignId = searchParams.get('campaignId') || undefined;
 
-    // Build query conditions
-    const conditions = [];
-    
-    // Add company filter through jobCampaigns
-    conditions.push(eq(jobCampaigns.companyId, session.user.companyId));
-    
-    // Exclude direct interview campaigns
-    conditions.push(ne(jobCampaigns.campaignName, 'Direct Interview'));
-    
-    // Add status filter if provided
-    if (status && status !== 'all') {
-      conditions.push(eq(candidates.status, status));
-    }
-    
-    // Add campaign filter if provided
-    if (campaignId && campaignId !== 'all') {
-      conditions.push(eq(candidates.campaignId, campaignId));
-    }
-
-    // Add search filter if provided
-    if (search) {
-      conditions.push(
-        or(
-          ilike(candidates.name, `%${search}%`),
-          ilike(candidates.email, `%${search}%`)
-        )
+    if (!companyId) {
+      return NextResponse.json(
+        { error: 'Company ID is required' },
+        { status: 400 }
       );
     }
 
-    // Fetch candidates with campaign details
-    const result = await db.select({
-      id: candidates.id,
-      campaignId: candidates.campaignId,
-      name: candidates.name,
-      email: candidates.email,
-      phone: candidates.phone,
-      location: candidates.location,
-      resumeUrl: candidates.resumeUrl,
-      linkedinUrl: candidates.linkedinUrl,
-      portfolioUrl: candidates.portfolioUrl,
-      experience: candidates.experience,
-      currentCompany: candidates.currentCompany,
-      currentRole: candidates.currentRole,
-      skills: candidates.skills,
-      source: candidates.source,
-      status: candidates.status,
-      overallScore: candidates.overallScore,
-      talentFitScore: candidates.talentFitScore,
-      aiParsedData: candidates.aiParsedData,
-      appliedAt: candidates.appliedAt,
-      updatedAt: candidates.updatedAt,
-      // Campaign details
-      campaignName: jobCampaigns.campaignName,
-      jobTitle: jobCampaigns.jobTitle,
-      department: jobCampaigns.department,
-    })
-    .from(candidates)
-    .innerJoin(jobCampaigns, eq(candidates.campaignId, jobCampaigns.id))
-    .where(and(...conditions))
-    .limit(limit)
-    .offset(offset)
-    .orderBy(desc(candidates.appliedAt));
-
-    // Get total count for pagination
-    const totalCountResult = await db
-      .select({ count: count() })
-      .from(candidates)
-      .innerJoin(jobCampaigns, eq(candidates.campaignId, jobCampaigns.id))
-      .where(and(...conditions));
+    // Build filters object for campaign-based candidates only
+    // We want to exclude direct interview candidates by filtering out 'direct' source
+    const filters = {
+      status,
+      search,
+      campaignId
+    };
     
-    const totalCount = totalCountResult[0].count;
+    // Remove undefined values from filters
+    Object.keys(filters).forEach(key => {
+      if (filters[key as keyof typeof filters] === undefined) {
+        delete filters[key as keyof typeof filters];
+      }
+    });
+    
+    const result = await getAllCandidatesByCompany(
+      companyId, 
+      Object.keys(filters).length > 0 ? filters : undefined
+    );
 
-    // Transform data to match expected format
-    const transformedCandidates = result.map(candidate => ({
-      id: candidate.id,
-      campaignId: candidate.campaignId,
-      name: candidate.name,
-      email: candidate.email,
-      phone: candidate.phone,
-      location: candidate.location,
-      experience: candidate.experience,
-      skills: candidate.skills ? JSON.parse(candidate.skills) : [],
-      status: candidate.status,
-      appliedDate: candidate.appliedAt,
-      resumeUrl: candidate.resumeUrl,
-      linkedinUrl: candidate.linkedinUrl,
-      portfolioUrl: candidate.portfolioUrl,
-      talentFitScore: candidate.talentFitScore,
-      overallScore: candidate.overallScore,
-      currentCompany: candidate.currentCompany,
-      currentRole: candidate.currentRole,
-      source: candidate.source,
-      campaignName: candidate.campaignName,
-      jobTitle: candidate.jobTitle,
-      department: candidate.department,
-    }));
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 500 }
+      );
+    }
 
+    // Filter out direct interview candidates from the results
+    const campaignBasedCandidates = (result.data || []).filter(candidate => 
+      candidate.source !== 'direct' && 
+      candidate.applicationSource !== 'direct'
+    );
+
+    // Return the response in the format expected by the frontend
     return NextResponse.json({
       success: true,
-      candidates: transformedCandidates,
-      pagination: {
-        total: totalCount,
-        limit,
-        offset,
-        hasMore: totalCount > offset + limit
-      },
-      message: 'Campaign-based candidates retrieved successfully'
+      candidates: campaignBasedCandidates
     });
 
   } catch (error) {
-    console.error('Error fetching campaign-based candidates:', error);
+    console.error('Error in GET /api/candidates/campaign-based:', error);
     return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        message: 'Failed to fetch candidates'
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

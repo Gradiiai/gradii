@@ -1854,13 +1854,6 @@ export default function QuestionCollectionPage() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                    {questionFormData.questionType && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="bg-blue-500 text-white p-1 rounded-full">
-                          <Brain className="w-3 h-3" />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1887,19 +1880,19 @@ export default function QuestionCollectionPage() {
                     <SelectContent>
                       <SelectItem
                         value="easy"
-                        className="text-green-600 font-medium"
+                        className="text-green-600 font-medium hover:bg-green-50 hover:text-green-700"
                       >
                         Easy
                       </SelectItem>
                       <SelectItem
                         value="medium"
-                        className="text-orange-600 font-medium"
+                        className="text-orange-600 font-medium hover:bg-orange-50 hover:text-orange-700"
                       >
                         Medium
                       </SelectItem>
                       <SelectItem
                         value="hard"
-                        className="text-red-600 font-medium"
+                        className="text-red-600 font-medium hover:bg-red-50 hover:text-red-700"
                       >
                         Hard
                       </SelectItem>

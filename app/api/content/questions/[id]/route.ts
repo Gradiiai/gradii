@@ -46,6 +46,9 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       expectedAnswer: body.expectedAnswer || undefined,
       sampleAnswer: body.sampleAnswer || undefined,
       scoringRubric,
+      multipleChoiceOptions: body.multipleChoiceOptions || undefined,
+      correctAnswer: body.correctAnswer || undefined,
+      explanation: body.explanation || undefined,
       tags: body.tags || undefined};
 
     const result = await updateQuestion(id, questionData);

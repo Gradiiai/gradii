@@ -113,6 +113,9 @@ export async function POST(req: NextRequest) {
       expectedAnswer: body.expectedAnswer || undefined,
       sampleAnswer: body.sampleAnswer || undefined,
       scoringRubric,
+      multipleChoiceOptions: body.multipleChoiceOptions || undefined,
+      correctAnswer: body.correctAnswer || undefined,
+      explanation: body.explanation || undefined,
       tags: body.tags || undefined};
 
     const result = await createQuestion(questionData);

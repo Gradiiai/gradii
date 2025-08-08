@@ -1035,6 +1035,9 @@ export async function createQuestion(data: {
   expectedAnswer?: string;
   sampleAnswer?: string;
   scoringRubric?: any;
+  multipleChoiceOptions?: any;
+  correctAnswer?: string;
+  explanation?: string;
   tags?: string;
 }) {
   try {

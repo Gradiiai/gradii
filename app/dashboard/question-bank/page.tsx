@@ -68,6 +68,7 @@ import {
   Layers,
   MoveLeft,
   ArrowLeftIcon,
+  Minus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -232,7 +233,51 @@ export default function QuestionCollectionPage() {
     sampleAnswer: "",
     scoringRubric: "",
     tags: "",
+    // MCQ specific fields
+    mcqOptions: ["", "", "", ""], // Initialize with 4 empty options
+    correctAnswer: "", // Index of the correct answer or the correct answer text
   });
+
+  // Track last used difficulty level
+  const [lastUsedDifficulty, setLastUsedDifficulty] = useState<string>("medium");
+
+  // Auto-detect question type based on content
+  const detectQuestionType = (question: string): string => {
+    if (!question) return "behavioral";
+    
+    const questionLower = question.toLowerCase();
+    
+    // Coding indicators
+    const codingKeywords = [
+      "write a function", "implement", "code", "algorithm", "program", 
+      "function", "method", "class", "variable", "array", "string",
+      "loop", "condition", "syntax", "debug", "compile", "execute",
+      "recursive", "iterate", "parse", "validate", "sort", "search"
+    ];
+    
+    // MCQ indicators (usually shorter, more direct)
+    const mcqKeywords = [
+      "which of the following", "what is", "what are", "select the correct",
+      "choose the", "identify the", "true or false", "correct answer",
+      "best describes", "most appropriate", "which statement"
+    ];
+    
+    // Check for MCQ patterns first (more specific)
+    const mcqCount = mcqKeywords.filter(keyword => questionLower.includes(keyword)).length;
+    if (mcqCount > 0 || (question.length < 200 && (questionLower.includes("?") || questionLower.includes("what") || questionLower.includes("which")))) {
+      return "mcq";
+    }
+    
+    // Check for coding patterns
+    const codingCount = codingKeywords.filter(keyword => questionLower.includes(keyword)).length;
+    if (codingCount >= 2 || questionLower.includes("write a function") || 
+        questionLower.includes("implement") || questionLower.includes("algorithm")) {
+      return "coding";
+    }
+    
+    // Default to behavioral
+    return "behavioral";
+  };
 
   // Filter state for questions
   const [questionFilters, setQuestionFilters] = useState({
@@ -275,6 +320,20 @@ export default function QuestionCollectionPage() {
       fetchQuestions();
     }
   }, [selectedCollection, currentView, questionFilters]);
+
+  // Initialize form with last used difficulty when opening new question dialog
+  useEffect(() => {
+    if (isQuestionDialogOpen) {
+      if (!editingQuestion && questionFormData.difficultyLevel === "") {
+        // New question - set last used difficulty
+        setQuestionFormData(prev => ({
+          ...prev,
+          difficultyLevel: lastUsedDifficulty
+        }));
+      }
+      // For editing questions, the difficulty is already set in openEditDialog
+    }
+  }, [isQuestionDialogOpen, editingQuestion, lastUsedDifficulty]);
 
   const fetchQuestionCollections = async () => {
     setLoading(true);
@@ -806,17 +865,21 @@ export default function QuestionCollectionPage() {
     setQuestionFormData({
       questionType: "",
       category: "",
-      difficultyLevel: "",
+      difficultyLevel: lastUsedDifficulty, // Auto-fill with last used difficulty
       question: "",
       expectedAnswer: "",
       sampleAnswer: "",
       scoringRubric: "",
       tags: "",
+      mcqOptions: ["", "", "", ""],
+      correctAnswer: "",
     });
   };
 
   const openEditDialog = (question: Question) => {
     setEditingQuestion(question);
+    // Update last used difficulty to match the question being edited
+    setLastUsedDifficulty(question.difficultyLevel);
     setQuestionFormData({
       questionType: question.questionType,
       category: question.category,
@@ -826,6 +889,12 @@ export default function QuestionCollectionPage() {
       sampleAnswer: question.sampleAnswer || "",
       scoringRubric: question.scoringRubric || "",
       tags: question.tags || "",
+      mcqOptions: question.questionType === "mcq" && (question as any).options 
+        ? (question as any).options 
+        : ["", "", "", ""],
+      correctAnswer: question.questionType === "mcq" && (question as any).correctAnswer 
+        ? (question as any).correctAnswer 
+        : "",
     });
     setIsQuestionDialogOpen(true);
   };
@@ -883,7 +952,7 @@ export default function QuestionCollectionPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="container mx-auto space-y-8">
+      <div className="container mx-auto space-y-6">
         {/* Enhanced Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-6">
@@ -911,7 +980,7 @@ export default function QuestionCollectionPage() {
 
         {/* Enhanced Question Banks View */}
         {currentView === "collections" && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Quick Stats */}
             <div className="flex justify-between items-center border border-gray-200 p-6">
               <div className="grid grid-cols-3 gap-2 w-1/2">
@@ -984,14 +1053,54 @@ export default function QuestionCollectionPage() {
             </div>
 
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="relative">
-                  <div className="w-16 h-16 border-4 border-blue-200 rounded-full animate-spin"></div>
-                  <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-                </div>
-                <p className="mt-4 text-gray-600 animate-pulse">
-                  Loading your question banks...
-                </p>
+              <div className="flex flex-col gap-2">
+                {[...Array(3)].map((_, index) => (
+                  <Card key={index} className="bg-white/80 animate-pulse">
+                    <CardHeader className="pb-3">
+                      <div className="flex justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 bg-gray-200 rounded w-48"></div>
+                          <div className="bg-gray-200 px-2 py-0.5 rounded-full h-6 w-12"></div>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <div className="h-8 w-8 bg-gray-200 rounded border"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded border"></div>
+                        </div>
+                      </div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mt-1"></div>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-4">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <div className="flex gap-4">
+                            <div className="flex items-center space-x-1.5">
+                              <div className="h-3.5 w-3.5 bg-gray-200 rounded"></div>
+                              <div className="h-4 bg-gray-200 rounded w-20"></div>
+                            </div>
+                            <div className="flex items-center space-x-1.5">
+                              <div className="h-3.5 w-3.5 bg-gray-200 rounded"></div>
+                              <div className="h-4 bg-gray-200 rounded w-24"></div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <div className="px-3 py-1.5 rounded-md border border-gray-200">
+                              <div className="h-4 bg-gray-200 rounded w-4 mb-1"></div>
+                              <div className="h-3 bg-gray-200 rounded w-8"></div>
+                            </div>
+                            <div className="px-3 py-1.5 rounded-md border border-gray-200">
+                              <div className="h-4 bg-gray-200 rounded w-4 mb-1"></div>
+                              <div className="h-3 bg-gray-200 rounded w-12"></div>
+                            </div>
+                            <div className="px-3 py-1.5 rounded-md border border-gray-200">
+                              <div className="h-4 bg-gray-200 rounded w-4 mb-1"></div>
+                              <div className="h-3 bg-gray-200 rounded w-8"></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             ) : questionCollections.length === 0 ? (
               <div className="text-center py-20">
@@ -1015,90 +1124,91 @@ export default function QuestionCollectionPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 {questionCollections.map((bank, index) => (
                   <Card
                     key={bank.id}
-                    className="group cursor-pointer bg-white/80"
+                    className="group cursor-pointer bg-white/80 hover:shadow-md transition-shadow"
                     onClick={() => openCollectionView(bank)}
                     style={{ animationDelay: `${index * 100}ms` }}
                   >
-                    <CardHeader className="flex justify-between">
+                    <CardHeader className="flex justify-between pb-3">
                       <div className="flex justify-between">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-xl font-medium">
+                          <CardTitle className="text-lg font-medium">
                             {bank.name}
                           </CardTitle>
-                          <div className="bg-green-100 px-2 py-1 rounded-3xl">
+                          <div className="bg-green-100 px-2 py-0.5 rounded-full">
                             <p className="text-xs text-green-800">Active</p>
                           </div>
                         </div>
 
-                        <div className="flex gap-2">
-                          <Button variant={"outline"}>
-                            <Eye className="h-4 w-4" />
+                        <div className="flex gap-1.5">
+                          <Button variant={"outline"} size="sm">
+                            <Eye className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             className="bg-red-100 text-red-600"
                             variant={"outline"}
+                            size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               checkDependenciesAndDelete(bank);
                             }}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
-                      <CardDescription className="text-gray-600 line-clamp-2">
+                      <CardDescription className="text-gray-600 line-clamp-2 text-sm mt-1">
                         {bank.description || "No description provided"}
                       </CardDescription>
                     </CardHeader>
 
-                    <CardContent className="pt-0">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start gap-5">
-                          <div className="flex gap-5">
-                            <div className="flex items-center space-x-2 text-sm text-gray-600">
-                              <FileText className="h-4 w-4" />
+                    <CardContent className="pt-0 pb-4">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <div className="flex gap-4">
+                            <div className="flex items-center space-x-1.5 text-sm text-gray-600">
+                              <FileText className="h-3.5 w-3.5" />
                               <span className="font-medium">
                                 {bank.questionCount || 0} questions
                               </span>
                             </div>
-                            <div className="flex items-center space-x-2 text-sm text-gray-500">
-                              <Calendar className="h-4 w-4" />
+                            <div className="flex items-center space-x-1.5 text-sm text-gray-500">
+                              <Calendar className="h-3.5 w-3.5" />
                               <span>
                                 {new Date(bank.createdAt).toLocaleDateString()}
                               </span>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="p-4 rounded-md border border-gray-200 text-center">
-                              <p>
+                          <div className="flex gap-2">
+                            <div className="px-3 py-1.5 rounded-md border border-gray-200 text-center">
+                              <p className="text-sm font-medium">
                                 {bank.questionTypes?.find(
                                   (qt) => qt.type === "mcq"
                                 )?.count || 0}
                               </p>
-                              <p className="text-sm">MCQs</p>
+                              <p className="text-xs text-gray-500">MCQs</p>
                             </div>
 
-                            <div className="p-4 rounded-md border border-gray-200 text-center">
-                              <p>
+                            <div className="px-3 py-1.5 rounded-md border border-gray-200 text-center">
+                              <p className="text-sm font-medium">
                                 {bank.questionTypes?.find(
                                   (qt) => qt.type === "behavioral"
                                 )?.count || 0}
                               </p>
-                              <p className="text-sm">Behavioral</p>
+                              <p className="text-xs text-gray-500">Behavioral</p>
                             </div>
 
-                            <div className="p-4 rounded-md border border-gray-200 text-center">
-                              <p>
+                            <div className="px-3 py-1.5 rounded-md border border-gray-200 text-center">
+                              <p className="text-sm font-medium">
                                 {bank.questionTypes?.find(
                                   (qt) => qt.type === "coding"
                                 )?.count || 0}
                               </p>
-                              <p className="text-sm">Coding</p>
+                              <p className="text-xs text-gray-500">Coding</p>
                             </div>
                           </div>
                         </div>
@@ -1236,7 +1346,12 @@ export default function QuestionCollectionPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div
-                      onClick={() => setIsQuestionDialogOpen(true)}
+                      onClick={() => {
+                        // Reset form and ensure editing state is clear
+                        setEditingQuestion(null);
+                        resetQuestionForm();
+                        setIsQuestionDialogOpen(true);
+                      }}
                       className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 cursor-pointer"
                     >
                       <Plus className="h-5 w-5 mr-2" />
@@ -1245,7 +1360,7 @@ export default function QuestionCollectionPage() {
                     </div>
                     <div
                       onClick={() => setIsGenerating(true)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 text-white border border-gray-200"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 text-white border border-gray-200 cursor-pointer"
                     >
                       <Sparkles className="h-5 w-5 mr-2" />
                       <p>AI Generate</p>
@@ -1255,15 +1370,57 @@ export default function QuestionCollectionPage() {
               </CardHeader>
               <CardContent>
                 {questionsLoading ? (
-                  <div className="flex flex-col items-center justify-center py-20">
-                    <div className="relative">
-                      <div className="w-16 h-16 border-4 border-blue-200 rounded-full animate-spin"></div>
-                      <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
-                    </div>
-                    <p className="mt-4 text-gray-600 animate-pulse">
-                      Loading questions...
-                    </p>
-                  </div>
+                  <Tabs defaultValue="table" className="w-full">
+                    <TabsContent value="table" className="mt-0">
+                      <div className="rounded-lg border border-gray-200 overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-purple-100">
+                            <TableRow>
+                              <TableHead className="font-semibold">Type</TableHead>
+                              <TableHead className="font-semibold">Question</TableHead>
+                              <TableHead className="font-semibold">Difficulty</TableHead>
+                              <TableHead className="font-semibold">Tags</TableHead>
+                              <TableHead className="font-semibold text-center">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[...Array(5)].map((_, index) => (
+                              <TableRow key={index} className="animate-pulse">
+                                <TableCell>
+                                  <div className="h-6 bg-gray-200 rounded w-16"></div>
+                                </TableCell>
+                                <TableCell className="max-w-md">
+                                  <div className="space-y-2">
+                                    <div className="h-4 bg-gray-200 rounded w-full"></div>
+                                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                                    <div className="flex items-center space-x-2">
+                                      <div className="h-5 bg-gray-200 rounded w-20"></div>
+                                      <div className="h-5 bg-gray-200 rounded w-24"></div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="h-6 bg-gray-200 rounded w-16"></div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-1">
+                                    <div className="h-5 bg-gray-200 rounded w-12"></div>
+                                    <div className="h-5 bg-gray-200 rounded w-16"></div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex justify-center space-x-1">
+                                    <div className="h-8 w-8 bg-gray-200 rounded border"></div>
+                                    <div className="h-8 w-8 bg-gray-200 rounded border"></div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 ) : questions.length === 0 ? (
                   <div className="text-center py-20">
                     <div className="mx-auto w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mb-6">
@@ -1279,7 +1436,12 @@ export default function QuestionCollectionPage() {
                     </p>
                     <div className="flex justify-center space-x-3">
                       <Button
-                        onClick={() => setIsQuestionDialogOpen(true)}
+                        onClick={() => {
+                          // Reset form and ensure editing state is clear
+                          setEditingQuestion(null);
+                          resetQuestionForm();
+                          setIsQuestionDialogOpen(true);
+                        }}
                         variant="outline"
                         className="border-2 border-blue-200 hover:border-blue-300 hover:bg-blue-50"
                       >
@@ -1628,87 +1790,98 @@ export default function QuestionCollectionPage() {
         {/* Question Dialog */}
         <Dialog
           open={isQuestionDialogOpen}
-          onOpenChange={setIsQuestionDialogOpen}
+          onOpenChange={(open) => {
+            setIsQuestionDialogOpen(open);
+            if (!open) {
+              // Clear editing question when dialog is closed
+              setEditingQuestion(null);
+              // Don't reset the form here as it will lose the last used difficulty
+            }
+          }}
         >
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-slate-50 to-white">
             <DialogHeader className="border-b border-slate-200 pb-4">
-              <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                {editingQuestion ? "✏️ Edit Question" : "✨ Add New Question"}
+              <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                {editingQuestion ? "Edit Question" : "Add New Question"}
               </DialogTitle>
               <DialogDescription className="text-slate-600 mt-2">
                 {editingQuestion
-                  ? "Update the question details below."
-                  : "Create a new question for your question bank with detailed information."}
+                  ? "Update the question details below. Question type will be automatically detected from your content."
+                  : "Create a new question for your question bank. The system will automatically detect the question type, and difficulty defaults to your last selection."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label
                     htmlFor="questionType"
                     className="text-sm font-semibold text-slate-700 flex items-center gap-2"
                   >
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     Question Type
                   </Label>
-                  <Select
-                    value={questionFormData.questionType}
-                    onValueChange={(value) =>
-                      setQuestionFormData((prev) => ({
-                        ...prev,
-                        questionType: value,
-                      }))
-                    }
-                  >
-                    <SelectTrigger className="h-12 border-2 border-slate-200 hover:border-blue-300 focus:border-blue-500 transition-colors">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={INTERVIEW_TYPES.MCQ}>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                          Multiple Choice (MCQ)
+                  <div className="relative">
+                    <Select
+                      value={questionFormData.questionType}
+                      disabled={true}
+                    >
+                      <SelectTrigger className="h-12 border-2 border-slate-200 bg-slate-50 cursor-not-allowed opacity-75">
+                        <SelectValue placeholder="Auto-detecting..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={INTERVIEW_TYPES.MCQ}>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            Multiple Choice (MCQ)
+                          </div>
+                        </SelectItem>
+                        <SelectItem value={INTERVIEW_TYPES.CODING}>
+                          <div className="flex items-center gap-2">
+                            <Code className="w-4 h-4 text-blue-500" />
+                            Coding Challenge
+                          </div>
+                        </SelectItem>
+                        <SelectItem value={INTERVIEW_TYPES.BEHAVIORAL}>
+                          <div className="flex items-center gap-2">
+                            <MessageSquare className="w-4 h-4 text-purple-500" />
+                            Behavioral Interview
+                          </div>
+                        </SelectItem>
+                        <SelectItem value={INTERVIEW_TYPES.COMBO}>
+                          <div className="flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-orange-500" />
+                            Combo (Mixed Types)
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {questionFormData.questionType && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="bg-blue-500 text-white p-1 rounded-full">
+                          <Brain className="w-3 h-3" />
                         </div>
-                      </SelectItem>
-                      <SelectItem value={INTERVIEW_TYPES.CODING}>
-                        <div className="flex items-center gap-2">
-                          <Code className="w-4 h-4 text-blue-500" />
-                          Coding Challenge
-                        </div>
-                      </SelectItem>
-                      <SelectItem value={INTERVIEW_TYPES.BEHAVIORAL}>
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4 text-purple-500" />
-                          Behavioral Interview
-                        </div>
-                      </SelectItem>
-                      <SelectItem value={INTERVIEW_TYPES.COMBO}>
-                        <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-orange-500" />
-                          Combo (Mixed Types)
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label
                     htmlFor="difficultyLevel"
                     className="text-sm font-semibold text-slate-700 flex items-center gap-2"
                   >
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                     Difficulty Level
                   </Label>
                   <Select
                     value={questionFormData.difficultyLevel}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       setQuestionFormData((prev) => ({
                         ...prev,
                         difficultyLevel: value,
-                      }))
-                    }
+                      }));
+                      // Save as last used difficulty
+                      setLastUsedDifficulty(value);
+                    }}
                   >
-                    <SelectTrigger className="h-12 border-2 border-slate-200 hover:border-orange-300 focus:border-orange-500 transition-colors">
+                    <SelectTrigger className="h-12 border-2 border-gray-200 transition-colors">
                       <SelectValue placeholder="Select difficulty" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1716,43 +1889,22 @@ export default function QuestionCollectionPage() {
                         value="easy"
                         className="text-green-600 font-medium"
                       >
-                        🟢 Easy
+                        Easy
                       </SelectItem>
                       <SelectItem
                         value="medium"
                         className="text-orange-600 font-medium"
                       >
-                        🟡 Medium
+                        Medium
                       </SelectItem>
                       <SelectItem
                         value="hard"
                         className="text-red-600 font-medium"
                       >
-                        🔴 Hard
+                        Hard
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="category"
-                    className="text-sm font-semibold text-slate-700 flex items-center gap-2"
-                  >
-                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                    Category
-                  </Label>
-                  <Input
-                    id="category"
-                    value={questionFormData.category}
-                    onChange={(e) =>
-                      setQuestionFormData((prev) => ({
-                        ...prev,
-                        category: e.target.value,
-                      }))
-                    }
-                    placeholder="e.g., JavaScript, Leadership, Algorithms"
-                    className="h-12 border-2 border-slate-200 hover:border-purple-300 focus:border-purple-500 transition-colors"
-                  />
                 </div>
               </div>
 
@@ -1761,53 +1913,256 @@ export default function QuestionCollectionPage() {
                   htmlFor="question"
                   className="text-sm font-semibold text-slate-700 flex items-center gap-2"
                 >
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                   Question Content
                 </Label>
                 <Textarea
                   id="question"
                   value={questionFormData.question}
-                  onChange={(e) =>
-                    setQuestionFormData((prev) => ({
-                      ...prev,
-                      question: e.target.value,
-                    }))
-                  }
-                  placeholder="Enter your question here... Be clear and specific about what you're asking."
+                  onChange={(e) => {
+                    const newQuestion = e.target.value;
+                    const detectedType = detectQuestionType(newQuestion);
+                    
+                    setQuestionFormData((prev) => {
+                      const updates: any = {
+                        question: newQuestion,
+                        questionType: detectedType,
+                      };
+                      
+                      // Auto-fill difficulty with last used difficulty if not already set
+                      if (!prev.difficultyLevel) {
+                        updates.difficultyLevel = lastUsedDifficulty;
+                      }
+                      
+                      // Handle MCQ-specific logic based on detected type
+                      if (detectedType !== "mcq") {
+                        updates.mcqOptions = ["", "", "", ""];
+                        updates.correctAnswer = "";
+                      } else if (detectedType === "mcq" && prev.questionType !== "mcq") {
+                        // Switching TO MCQ, clear expectedAnswer (it will be auto-populated from MCQ selection)
+                        updates.expectedAnswer = "";
+                      }
+                      
+                      return {
+                        ...prev,
+                        ...updates,
+                      };
+                    });
+                  }}
+                  placeholder="Enter your question here... The system will automatically detect the question type."
                   rows={5}
-                  className="border-2 border-slate-200 hover:border-emerald-300 focus:border-emerald-500 transition-colors resize-none"
+                  className="border-2 border-gray-200 focus:border-gray-400 transition-colors resize-none"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label
-                  htmlFor="expectedAnswer"
-                  className="text-sm font-semibold text-slate-700 flex items-center gap-2"
-                >
-                  <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
-                  Expected Answer / Solution
-                </Label>
-                <Textarea
-                  id="expectedAnswer"
-                  value={questionFormData.expectedAnswer}
-                  onChange={(e) =>
-                    setQuestionFormData((prev) => ({
-                      ...prev,
-                      expectedAnswer: e.target.value,
-                    }))
-                  }
-                  placeholder="Provide the expected answer, solution approach, or key points to look for... (Optional)"
-                  rows={4}
-                  className="border-2 border-slate-200 hover:border-teal-300 focus:border-teal-500 transition-colors resize-none"
-                />
-              </div>
+              {/* MCQ Options - Show only when question type is MCQ */}
+              {questionFormData.questionType === "mcq" && (
+                <div className="space-y-4 p-6 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border-2 border-blue-100">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Label className="text-sm font-semibold text-slate-700">
+                      Multiple Choice Options
+                    </Label>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    {questionFormData.mcqOptions.map((option, index) => (
+                      <div key={index} className="flex items-center gap-3">
+                        <div className="flex items-center">
+                          <input
+                            type="radio"
+                            id={`correct-${index}`}
+                            name="correctAnswer"
+                            checked={questionFormData.correctAnswer === index.toString()}
+                            onChange={() => {
+                              const selectedOption = questionFormData.mcqOptions[index];
+                              setQuestionFormData((prev) => ({
+                                ...prev,
+                                correctAnswer: index.toString(),
+                                expectedAnswer: selectedOption || `Option ${String.fromCharCode(65 + index)}`,
+                              }));
+                            }}
+                            className="w-4 h-4 text-green-600 border-2 border-gray-300 focus:ring-green-500 focus:ring-2"
+                          />
+                          <label htmlFor={`correct-${index}`} className="ml-2 text-sm font-medium text-slate-600">
+                            {String.fromCharCode(65 + index)}.
+                          </label>
+                        </div>
+                        <div className="flex-1 relative">
+                          <Input
+                            value={option}
+                            onChange={(e) => {
+                              const newOptions = [...questionFormData.mcqOptions];
+                              newOptions[index] = e.target.value;
+                              const updates: any = {
+                                mcqOptions: newOptions,
+                              };
+                              
+                              // If this option is currently the correct answer, update expectedAnswer too
+                              if (questionFormData.correctAnswer === index.toString()) {
+                                updates.expectedAnswer = e.target.value || `Option ${String.fromCharCode(65 + index)}`;
+                              }
+                              
+                              setQuestionFormData((prev) => ({
+                                ...prev,
+                                ...updates,
+                              }));
+                            }}
+                            placeholder={`Option ${String.fromCharCode(65 + index)}`}
+                            className={`h-12 border-2 transition-colors ${
+                              questionFormData.correctAnswer === index.toString()
+                                ? 'border-green-300 bg-green-50 focus:border-green-500'
+                                : 'border-slate-200 hover:border-blue-300 focus:border-blue-500'
+                            }`}
+                          />
+                          {questionFormData.correctAnswer === index.toString() && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="bg-green-500 text-white px-2 py-1 rounded-full text-xs font-medium">
+                                Correct
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add/Remove Options */}
+                  <div className="flex items-center gap-2 pt-2">
+                    {questionFormData.mcqOptions.length < 6 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setQuestionFormData((prev) => ({
+                            ...prev,
+                            mcqOptions: [...prev.mcqOptions, ""],
+                          }))
+                        }
+                        className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:text-purple-700"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Option
+                      </Button>
+                    )}
+                    {questionFormData.mcqOptions.length > 2 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setQuestionFormData((prev) => ({
+                            ...prev,
+                            mcqOptions: prev.mcqOptions.slice(0, -1),
+                            correctAnswer: 
+                              prev.correctAnswer === (prev.mcqOptions.length - 1).toString()
+                                ? ""
+                                : prev.correctAnswer,
+                          }))
+                        }
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                      >
+                        <Minus className="w-4 h-4 mr-1" />
+                        Remove Option
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Correct Answer Summary */}
+                  {questionFormData.correctAnswer !== "" && questionFormData.mcqOptions[parseInt(questionFormData.correctAnswer)] && (
+                    <div className="bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-200 rounded-xl p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-green-500 text-white rounded-full p-1">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-semibold text-green-800">
+                              Correct Answer: Option {String.fromCharCode(65 + parseInt(questionFormData.correctAnswer))}
+                            </span>
+                            <div className="bg-green-600 text-white px-2 py-0.5 rounded text-xs font-medium">
+                              Auto-saved as Expected Answer
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg p-3 border border-green-200">
+                            <p className="text-sm text-gray-700 font-medium">
+                              "{questionFormData.mcqOptions[parseInt(questionFormData.correctAnswer)]}"
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MCQ Preview */}
+                  {questionFormData.question && questionFormData.mcqOptions.some(opt => opt.trim() !== "") && (
+                    <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye className="w-4 h-4 text-gray-600" />
+                        <span className="text-sm font-medium text-gray-700">Preview</span>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="font-medium text-gray-900">
+                          {questionFormData.question}
+                        </div>
+                        <div className="space-y-2">
+                          {questionFormData.mcqOptions.map((option, index) => (
+                            option.trim() && (
+                              <div 
+                                key={index} 
+                                className={`p-2 rounded border ${
+                                  questionFormData.correctAnswer === index.toString()
+                                    ? 'bg-green-50 border-green-200'
+                                    : 'bg-gray-50 border-gray-200'
+                                }`}
+                              >
+                                <span className="font-medium text-sm">
+                                  {String.fromCharCode(65 + index)}. 
+                                </span>
+                                <span className="ml-2 text-sm">{option}</span>
+                                {questionFormData.correctAnswer === index.toString() && (
+                                  <span className="ml-2 text-xs text-green-600 font-medium">✓</span>
+                                )}
+                              </div>
+                            )
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Expected Answer / Solution - Hidden for MCQ questions */}
+              {questionFormData.questionType !== "mcq" && (
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="expectedAnswer"
+                    className="text-sm font-semibold text-slate-700 flex items-center gap-2"
+                  >
+                    <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                    Expected Answer / Solution
+                  </Label>
+                  <Textarea
+                    id="expectedAnswer"
+                    value={questionFormData.expectedAnswer}
+                    onChange={(e) =>
+                      setQuestionFormData((prev) => ({
+                        ...prev,
+                        expectedAnswer: e.target.value,
+                      }))
+                    }
+                    placeholder="Provide the expected answer, solution approach, or key points to look for... (Optional)"
+                    rows={4}
+                    className="border-2 border-slate-200 hover:border-teal-300 focus:border-teal-500 transition-colors resize-none"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label
                   htmlFor="tags"
                   className="text-sm font-semibold text-slate-700 flex items-center gap-2"
                 >
-                  <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
                   Tags
                 </Label>
                 <Input
@@ -1820,7 +2175,7 @@ export default function QuestionCollectionPage() {
                     }))
                   }
                   placeholder="e.g., arrays, sorting, algorithms, problem-solving"
-                  className="h-12 border-2 border-slate-200 hover:border-pink-300 focus:border-pink-500 transition-colors"
+                  className="h-12 border-2 border-gray-200 focus:border-gray-400 transition-colors"
                 />
                 <p className="text-xs text-slate-500 mt-1">
                   Separate multiple tags with commas
@@ -1833,7 +2188,7 @@ export default function QuestionCollectionPage() {
                 onClick={() => {
                   setIsQuestionDialogOpen(false);
                   setEditingQuestion(null);
-                  resetQuestionForm();
+                  // Don't reset form here to preserve last used difficulty
                 }}
                 className="h-11 px-6 border-2 hover:bg-slate-50"
               >

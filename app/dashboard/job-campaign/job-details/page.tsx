@@ -64,6 +64,27 @@ import { CURRENCIES } from "@/lib/campaign-constants";
 import { toast } from "sonner";
 import { z } from "zod";
 
+// Interface for job posts
+interface JobPost {
+  id: string;
+  title: string;
+  department: string;
+  location: string;
+  experienceLevel?: string;
+  experienceMin?: number;
+  experienceMax?: number;
+  employeeType: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  currency: string;
+  isRemote: boolean;
+  isHybrid: boolean;
+  salaryNegotiable: boolean;
+  courseDegree?: string;
+  specialization?: string;
+  createdAt: string;
+}
+
 // Validation schema for job details
 const jobDetailsSchema = z
   .object({
@@ -235,8 +256,10 @@ export default function JobDetailsStep() {
   const [saveProgress, setSaveProgress] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [availablePosts, setAvailablePosts] = useState<any[]>([]);
+  const [availablePosts, setAvailablePosts] = useState<JobPost[]>([]);
   const [selectedPostId, setSelectedPostId] = useState<string>("");
+  const [creationMode, setCreationMode] = useState<'custom' | 'from-post'>('custom');
+  const [loadingJobPosts, setLoadingJobPosts] = useState(false);
 
   function formatDateInput(dateString: string | null): string {
     if (!dateString) return "";
@@ -261,6 +284,69 @@ export default function JobDetailsStep() {
     }
     if (field === "applicationDeadline" || field === "targetHireDate") {
       validateForm();
+    }
+  };
+
+  // Fetch available job posts
+  const fetchJobPosts = async () => {
+    if (!session?.user?.companyId) return;
+    
+    setLoadingJobPosts(true);
+    try {
+      const response = await fetch(`/api/content/posts?companyId=${session.user.companyId}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setAvailablePosts(result.data || []);
+      } else {
+        console.error("Failed to fetch job posts:", result.error);
+      }
+    } catch (error) {
+      console.error("Error fetching job posts:", error);
+    } finally {
+      setLoadingJobPosts(false);
+    }
+  };
+
+  // Handle job post selection
+  const handleJobPostSelection = (postId: string) => {
+    const selectedPost = availablePosts.find(post => post.id === postId);
+    if (selectedPost) {
+      setSelectedPostId(postId);
+      
+      // Map job post data to job details form
+      updateJobDetails({
+        jobTitle: selectedPost.title,
+        department: selectedPost.department,
+        location: selectedPost.location,
+        experienceLevel: selectedPost.experienceLevel || "",
+        employeeType: selectedPost.employeeType,
+        salaryMin: selectedPost.salaryMin || 0,
+        salaryMax: selectedPost.salaryMax || 0,
+        currency: selectedPost.currency,
+        isRemote: selectedPost.isRemote,
+        isHybrid: selectedPost.isHybrid,
+        salaryNegotiable: selectedPost.salaryNegotiable,
+        minExperience: selectedPost.experienceMin || 0,
+        maxExperience: selectedPost.experienceMax || 0,
+        courseDegree: selectedPost.courseDegree || "",
+        specialization: selectedPost.specialization || "",
+      });
+      
+      setHasUnsavedChanges(true);
+      toast.success("Job post details loaded successfully!");
+    }
+  };
+
+  // Handle creation mode change
+  const handleCreationModeChange = (mode: 'custom' | 'from-post') => {
+    setCreationMode(mode);
+    
+    if (mode === 'from-post') {
+      fetchJobPosts();
+    } else {
+      // Clear selected post when switching to custom mode
+      setSelectedPostId("");
     }
   };
 
@@ -980,6 +1066,112 @@ export default function JobDetailsStep() {
                   </div>
                 </div>
               )}
+
+              {/* Creation Mode Selection */}
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="font-medium text-gray-900 mb-4">How would you like to create this job campaign?</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      creationMode === 'custom'
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                    onClick={() => handleCreationModeChange('custom')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        creationMode === 'custom' ? 'border-purple-500' : 'border-gray-300'
+                      }`}>
+                        {creationMode === 'custom' && (
+                          <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        )}
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900">Create Custom Job</h5>
+                        <p className="text-sm text-gray-600">Fill in job details manually</p>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      creationMode === 'from-post'
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                    onClick={() => handleCreationModeChange('from-post')}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        creationMode === 'from-post' ? 'border-purple-500' : 'border-gray-300'
+                      }`}>
+                        {creationMode === 'from-post' && (
+                          <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        )}
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900">Use Existing Job Post</h5>
+                        <p className="text-sm text-gray-600">Select from your job posts</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+
+                {/* Job Post Selection */}
+                {creationMode === 'from-post' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4 pt-4 border-t border-gray-200"
+                  >
+                    <Label htmlFor="jobPostSelect" className="text-sm font-medium">
+                      Select Job Post
+                    </Label>
+                    {loadingJobPosts ? (
+                      <div className="flex items-center gap-2 py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm text-gray-600">Loading job posts...</span>
+                      </div>
+                    ) : availablePosts.length > 0 ? (
+                      <Select value={selectedPostId} onValueChange={handleJobPostSelection}>
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Choose a job post to use as template" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePosts.map((post) => (
+                            <SelectItem key={post.id} value={post.id}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{post.title}</span>
+                                <span className="text-xs text-gray-500">
+                                  {post.department} • {post.location} • {post.employeeType}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm text-yellow-800">
+                          No job posts found. You can create job posts from the{" "}
+                          <a 
+                            href="/dashboard/posts" 
+                            className="underline font-medium hover:text-yellow-900"
+                          >
+                            Posts section
+                          </a>.
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </div>
 
               {/* Basic Information */}
               <div className="flex-col space-y-4">

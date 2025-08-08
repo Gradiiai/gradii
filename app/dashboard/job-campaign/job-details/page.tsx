@@ -317,16 +317,18 @@ export default function JobDetailsStep() {
       
       // Map ALL job post data to job details form with proper fallbacks
       updateJobDetails({
-        // Keep existing campaign name if set, otherwise generate from job title
-        campaignName: state.jobDetails.campaignName || `${selectedPost.title} Campaign`,
+        // Always generate campaign name from job title for consistency
+        campaignName: `${selectedPost.title} Campaign`,
         jobTitle: selectedPost.title || "",
         department: selectedPost.department || "",
         location: selectedPost.location || "",
         experienceLevel: selectedPost.experienceLevel || "",
         employeeType: selectedPost.employeeType || "",
-        salaryMin: selectedPost.salaryMin || 0,
-        salaryMax: selectedPost.salaryMax || 0,
+        // Salary information
+        salaryMin: selectedPost.salaryMin || undefined,
+        salaryMax: selectedPost.salaryMax || undefined,
         currency: selectedPost.currency || "INR",
+        salaryNegotiable: selectedPost.salaryNegotiable || false,
         
         // Set defaults for campaign-specific fields
         numberOfOpenings: state.jobDetails.numberOfOpenings || 1,
@@ -358,7 +360,27 @@ export default function JobDetailsStep() {
       });
       
       setHasUnsavedChanges(true);
-      toast.success("Job post details loaded successfully! You can now modify any fields as needed.");
+      
+      // Build success message with loaded fields
+      const loadedFields = [
+        'Job Title', 'Department', 'Location', 'Employee Type',
+        selectedPost.experienceLevel && 'Experience Level',
+        (selectedPost.salaryMin || selectedPost.salaryMax) && 'Salary Range',
+        selectedPost.isRemote && 'Remote Work',
+        selectedPost.isHybrid && 'Hybrid Work',
+        selectedPost.courseDegree && 'Education',
+        selectedPost.specialization && 'Specialization'
+      ].filter(Boolean);
+      
+      console.log('Selected post data:', selectedPost);
+      console.log('Salary data loaded:', {
+        salaryMin: selectedPost.salaryMin,
+        salaryMax: selectedPost.salaryMax,
+        currency: selectedPost.currency,
+        salaryNegotiable: selectedPost.salaryNegotiable
+      });
+      
+      toast.success(`Job post "${selectedPost.title}" loaded! ${loadedFields.length} fields populated: ${loadedFields.join(', ')}`);
     }
   };
 
@@ -371,8 +393,8 @@ export default function JobDetailsStep() {
       location: "",
       experienceLevel: "",
       employeeType: "",
-      salaryMin: 0,
-      salaryMax: 0,
+      salaryMin: undefined,
+      salaryMax: undefined,
       currency: "INR",
       numberOfOpenings: 1,
       jobDescription: "",
@@ -411,8 +433,8 @@ export default function JobDetailsStep() {
           location: "",
           experienceLevel: "",
           employeeType: "",
-          salaryMin: 0,
-          salaryMax: 0,
+          salaryMin: undefined,
+          salaryMax: undefined,
           currency: "INR",
           numberOfOpenings: 1,
           jobDescription: "",
@@ -443,8 +465,8 @@ export default function JobDetailsStep() {
           location: "",
           experienceLevel: "",
           employeeType: "",
-          salaryMin: 0,
-          salaryMax: 0,
+          salaryMin: undefined,
+          salaryMax: undefined,
           currency: "INR",
           numberOfOpenings: 1,
           jobDescription: "",
@@ -796,8 +818,8 @@ export default function JobDetailsStep() {
             experienceLevel: "",
             employeeType: "",
             numberOfOpenings: 1,
-            salaryMin: 0,
-            salaryMax: 0,
+            salaryMin: undefined,
+            salaryMax: undefined,
             currency: "INR",
             jobDescription: "",
             jobDuties: "",
@@ -1368,17 +1390,7 @@ export default function JobDetailsStep() {
                            <SelectContent>
                              {availablePosts.map((post) => (
                                <SelectItem key={post.id} value={post.id}>
-                                 <div className="flex flex-col py-1">
-                                   <span className="font-medium text-gray-900">{post.title}</span>
-                                   <span className="text-xs text-gray-500">
-                                     {post.department} • {post.location} • {post.employeeType}
-                                   </span>
-                                   {(post.salaryMin || post.salaryMax) && (
-                                     <span className="text-xs text-green-600">
-                                       {post.currency} {post.salaryMin?.toLocaleString()} - {post.salaryMax?.toLocaleString()}
-                                     </span>
-                                   )}
-                                 </div>
+                                 {post.title}
                                </SelectItem>
                              ))}
                            </SelectContent>

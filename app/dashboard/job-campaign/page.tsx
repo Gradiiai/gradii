@@ -7,7 +7,8 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle} from "@/components/ui/shared/card";
+  CardTitle,
+} from "@/components/ui/shared/card";
 import { Button } from "@/components/ui/shared/button";
 import { Badge } from "@/components/ui/shared/badge";
 import { Input } from "@/components/ui/shared/input";
@@ -17,7 +18,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue} from "@/components/ui/select";
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Plus,
   Search,
@@ -28,7 +30,8 @@ import {
   Eye,
   Edit,
   Trash2,
-  Building2} from "lucide-react";
+  Building2,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
@@ -153,36 +156,110 @@ export default function JobCampaignsPage() {
 
     try {
       const response = await fetch(`/api/campaigns/jobs/${campaignId}`, {
-        method: "DELETE"});
+        method: "DELETE",
+      });
 
       if (response.ok) {
         setCampaigns((prevCampaigns) => prevCampaigns.filter((campaign) => campaign.id !== campaignId));
         toast({
           title: "Success",
-          description: "Job campaign deleted successfully!"});
+          description: "Job campaign deleted successfully!",
+        });
       } else {
         const errorData = await response.json();
         toast({
           title: "Error",
           description: `Error deleting campaign: ${errorData.error}`,
-          variant: "destructive"});
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error deleting job campaign:", error);
       toast({
         title: "Error",
         description: "An error occurred while deleting the campaign. Please try again.",
-        variant: "destructive"});
+        variant: "destructive",
+      });
     }
   };
 
   // Render loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-          <span className="ml-2 text-sm md:text-base">Loading job campaigns...</span>
+      <div className="min-h-screen flex flex-col">
+        <div className="container mx-auto px-4 sm:py-8">
+          {/* Header skeleton */}
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-5 sm:mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse"></div>
+            </div>
+
+            {/* Filters skeleton */}
+            <Card className="mt-4 sm:mt-6">
+              <CardContent className="pt-4 sm:pt-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="h-10 w-full bg-gray-200 rounded-md animate-pulse"></div>
+                  </div>
+                  <div className="h-10 w-full sm:w-40 bg-gray-200 rounded-md animate-pulse"></div>
+                  <div className="h-10 w-full sm:w-40 bg-gray-200 rounded-md animate-pulse"></div>
+                  <div className="h-10 w-full sm:w-auto sm:px-8 bg-purple-200 rounded-md animate-pulse"></div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Campaign cards skeleton */}
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map((index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card>
+                  <CardHeader className="pb-2 sm:pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
+                          <div className="h-6 w-64 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 sm:mt-0">
+                            <div className="h-5 w-16 bg-gray-200 rounded-full animate-pulse"></div>
+                            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="h-4 w-48 bg-gray-200 rounded animate-pulse mt-1"></div>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        {[1, 2, 3, 4].map((btnIndex) => (
+                          <div key={btnIndex} className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                    <div className="flex flex-col gap-2 sm:gap-3">
+                      <div className="flex flex-wrap gap-2 sm:gap-4">
+                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-4 w-28 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                      <div className="h-4 w-36 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 w-full sm:w-auto">
+                      {[1, 2, 3, 4, 5].map((statIndex) => (
+                        <div key={statIndex} className="p-2 sm:p-4 border border-gray-200 rounded-lg text-center">
+                          <div className="h-5 w-8 bg-gray-200 rounded animate-pulse mx-auto mb-2"></div>
+                          <div className="h-3 w-12 bg-gray-200 rounded animate-pulse mx-auto"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -190,7 +267,7 @@ export default function JobCampaignsPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <div className="container mx-auto px-4 py-6 sm:py-8">
+      <div className="container mx-auto px-4 sm:py-8">
         {/* Header section */}
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-5 sm:mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

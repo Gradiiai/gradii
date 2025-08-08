@@ -337,7 +337,6 @@ export default function JobDetailsStep() {
         // Work arrangement flags
         isRemote: selectedPost.isRemote || false,
         isHybrid: selectedPost.isHybrid || false,
-        salaryNegotiable: selectedPost.salaryNegotiable || false,
         
         // Experience ranges
         minExperience: selectedPost.experienceMin || 0,
@@ -643,13 +642,25 @@ export default function JobDetailsStep() {
 
       console.log("Sending payload:", payload);
       console.log("Job details state:", state.jobDetails);
+      
+      // Determine if this is an update (campaign exists) or create (new campaign)
+      const isUpdate = !!state.campaignId;
+      
+      console.log("Save operation:", { 
+        isUpdate, 
+        campaignId: state.campaignId, 
+        isEditMode, 
+        method: isUpdate ? "PUT" : "POST", 
+        url: isUpdate
+          ? `/api/campaigns/jobs/${state.campaignId}`
+          : "/api/campaigns/jobs"
+      });
 
-      const url =
-        isEditMode && state.campaignId
+      const url = isUpdate
           ? `/api/campaigns/jobs/${state.campaignId}`
           : "/api/campaigns/jobs";
 
-      const method = isEditMode && state.campaignId ? "PUT" : "POST";
+      const method = isUpdate ? "PUT" : "POST";
 
       const response = await fetch(url, {
         method,
@@ -678,10 +689,13 @@ export default function JobDetailsStep() {
       const result = await response.json();
 
       if (result.success && result.data) {
-        setCampaignId(result.data.id);
+        // Only set campaign ID if this was a new campaign creation
+        if (!state.campaignId) {
+          setCampaignId(result.data.id);
+        }
         setHasUnsavedChanges(false);
         toast.success(
-          isEditMode
+          isUpdate
             ? "Job campaign updated successfully!"
             : "Job campaign created successfully!"
         );
@@ -1060,91 +1074,7 @@ export default function JobDetailsStep() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!session?.user?.companyId) {
-      setError("User session not found");
-      return;
-    }
-
-    if (!isFormValid) {
-      setError("Please fill in all required fields");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Create job campaign via API
-      const campaignData = {
-        campaignName: state.jobDetails.campaignName,
-        jobTitle: state.jobDetails.jobTitle,
-        department: state.jobDetails.department,
-        location: state.jobDetails.location,
-        experienceLevel: `${state.jobDetails.experienceMin || 0}-${state.jobDetails.experienceMax || 0} years`,
-        employeeType: state.jobDetails.employeeType,
-        salaryMin: state.jobDetails.salaryMin || undefined,
-        salaryMax: state.jobDetails.salaryMax || undefined,
-        currency: state.jobDetails.currency,
-        numberOfOpenings: state.jobDetails.numberOfOpenings,
-        jobDescription: state.jobDetails.jobDescription || "",
-        jobDuties: [
-          (state.jobDetails.requirements || []).join(", "),
-          (state.jobDetails.benefits || []).join(", "),
-          (state.jobDetails.skills || []).join(", "),
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-        jobRequirements: state.jobDetails.jobRequirements,
-        jobBenefits: state.jobDetails.jobBenefits,
-        jobDescriptionTemplateId:
-          state.jobDetails.jobDescriptionTemplateId || null,
-        skillTemplateId: state.jobDetails.skillTemplateId || null,
-        applicationDeadline: state.jobDetails.applicationDeadline
-          ? new Date(state.jobDetails.applicationDeadline)
-          : null,
-        targetHireDate: state.jobDetails.targetHireDate
-          ? new Date(state.jobDetails.targetHireDate)
-          : null,
-        isRemote: state.jobDetails.isRemote,
-        isHybrid: state.jobDetails.isHybrid,
-        companyId: session.user.companyId || "",
-      };
-
-      const response = await fetch("/api/campaigns/jobs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(campaignData),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        // Update store with campaign ID and move to next step
-        setCampaignId(result.data.id);
-        setCurrentStep(2);
-
-        toast.success("Job campaign created successfully!");
-
-        // Navigate to next step with a small delay to ensure state is updated
-        setTimeout(() => {
-          router.push("/dashboard/job-campaign/interview-setup");
-        }, 100);
-      } else {
-        setError(result.message || "Failed to create job campaign");
-        toast.error(result.message || "Failed to create job campaign");
-      }
-    } catch (error) {
-      console.error("Error creating job campaign:", error);
-      const errorMessage = "An error occurred while creating the job campaign";
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Removed duplicate handleSubmit function - using saveJobCampaign instead
 
   const saveDraft = () => {
     // Draft is automatically saved via Redis storage in the job campaign store

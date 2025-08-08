@@ -1023,8 +1023,7 @@ export default function JobCampaignCandidatesPage() {
                                         }
                                       })()}
                                     {(!candidate.skills || 
-                                      (Array.isArray(candidate.skills) && candidate.skills.length === 0) ||
-                                      (typeof candidate.skills === 'string' && candidate.skills.trim() === '')) && (
+                                      (Array.isArray(candidate.skills) && candidate.skills.length === 0)) && (
                                       <div className="text-gray-500 text-xs sm:text-sm">
                                         No skills information available
                                       </div>

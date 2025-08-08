@@ -24,7 +24,8 @@ import {
   Users,
   UserCheck,
   Target,
-  Building
+  Building,
+  Sparkles
 } from 'lucide-react';
 
 interface NavigationItem {
@@ -88,25 +89,48 @@ export const Navigation = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm transition-all duration-300">
+    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-200/60 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.15)] transition-all duration-300">
       <div className="container mx-auto px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="flex items-center justify-center">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <rect width="32" height="32" rx="8" fill="url(#gradient)" />
-                <path d="M8 16C8 13.5 9.5 12 12 12H20C22.5 12 24 13.5 24 16V20C24 22.5 22.5 24 20 24H12C9.5 24 8 22.5 8 20V16Z" fill="white"/>
-                <defs>
-                  <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
-                    <stop offset="0%" stopColor="#F97316" />
-                    <stop offset="100%" stopColor="#EC4899" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <span className="text-xl font-bold text-gray-900">gradii</span>
-          </Link>
+          {/* Logo + Iris pill */}
+          <div className="flex items-center gap-3">
+            <Link href="/" className="flex items-center space-x-2">
+              <div className="flex items-center justify-center">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                  <rect width="32" height="32" rx="8" fill="url(#gradient)" />
+                  <path d="M8 16C8 13.5 9.5 12 12 12H20C22.5 12 24 13.5 24 16V20C24 22.5 22.5 24 20 24H12C9.5 24 8 22.5 8 20V16Z" fill="white"/>
+                  <defs>
+                    <linearGradient id="gradient" x1="0" y1="0" x2="32" y2="32">
+                      <stop offset="0%" stopColor="#F97316" />
+                      <stop offset="100%" stopColor="#EC4899" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              <span className="text-xl font-bold text-gray-900">gradii</span>
+            </Link>
+
+            {/* Iris pill (like ClickUp Brain) */}
+            <Link href="/iris" title="Iris by Gradii" className="hidden sm:block">
+              <motion.div
+                className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-400 shadow-[0_0_0_0_rgba(236,72,153,0.7)]"
+                initial={{ scale: 0.96 }}
+                animate={{
+                  scale: [0.96, 1, 0.96],
+                  boxShadow: [
+                    '0 0 0 0 rgba(236,72,153,0.6)',
+                    '0 0 30px 2px rgba(236,72,153,0.45)',
+                    '0 0 0 0 rgba(236,72,153,0.6)'
+                  ]
+                }}
+                transition={{ duration: 3, repeat: Infinity }}
+                whileHover={{ scale: 1.04 }}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Iris</span>
+              </motion.div>
+            </Link>
+          </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1">
@@ -286,6 +310,13 @@ export const Navigation = () => {
             transition={{ duration: 0.3, ease: 'easeInOut' }}
           >
             <div className="px-2 pt-2 pb-3 space-y-1">
+              {/* Iris quick access on mobile */}
+              <Link href="/iris" onClick={() => setIsMobileMenuOpen(false)}>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold text-white bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-400">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Iris</span>
+                </div>
+              </Link>
               {/* Main Navigation Items */}
               {mainNavigationItems.map((item) => (
                 <Link

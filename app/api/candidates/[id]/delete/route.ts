@@ -11,8 +11,6 @@ import {
   candidateApplications,
   candidateResults,
   candidateNotifications,
-  candidateDocuments,
-  candidatePreferences,
   fileStorage,
   InterviewAnalytics,
   CodingInterview,
@@ -104,8 +102,7 @@ export async function DELETE(
       candidateResults: 0,
       candidateNotifications: 0,
 
-      candidateDocuments: 0,
-      candidatePreferences: 0,
+
       fileStorage: 0
     };
 
@@ -207,17 +204,7 @@ export async function DELETE(
 
       // Note: Candidate sessions are now handled by Redis via NextAuth adapter
 
-      // Delete candidate documents
-      const deletedDocuments = await db.delete(candidateDocuments)
-        .where(eq(candidateDocuments.candidateId, candidateUserId))
-        .returning({ id: candidateDocuments.id });
-      deletionResults.candidateDocuments = deletedDocuments.length;
 
-      // Delete candidate preferences
-      const deletedPreferences = await db.delete(candidatePreferences)
-        .where(eq(candidatePreferences.candidateId, candidateUserId))
-        .returning({ id: candidatePreferences.id });
-      deletionResults.candidatePreferences = deletedPreferences.length;
 
       // Delete candidate user account
       const deletedUser = await db.delete(candidateUsers)

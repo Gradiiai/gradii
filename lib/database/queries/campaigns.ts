@@ -295,6 +295,7 @@ export async function getJobCampaigns(params: {
   sortBy?: string;
   sortOrder?: string;
   isRemote?: boolean;
+  excludeDirectInterview?: boolean;
 }) {
   try {
     const {
@@ -309,15 +310,19 @@ export async function getJobCampaigns(params: {
       status,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-      isRemote
+      isRemote,
+      excludeDirectInterview = true
     } = params;
 
     // Build where conditions
     const conditions: (SQL | undefined)[] = [
-      eq(jobCampaigns.companyId, companyId),
-      // Exclude direct interview campaigns
-      ne(jobCampaigns.campaignName, 'Direct Interview')
+      eq(jobCampaigns.companyId, companyId)
     ];
+
+    // Conditionally exclude direct interview campaigns
+    if (excludeDirectInterview) {
+      conditions.push(ne(jobCampaigns.campaignName, 'Direct Interview'));
+    }
 
     if (search) {
       conditions.push(

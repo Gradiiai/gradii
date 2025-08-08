@@ -40,7 +40,7 @@ interface CodingQuestion {
   description: string;
   examples: Array<{
     input: string[];
-    output: number;
+    output: any;
     explanation: string;
   }>;
   constraints: string[];
@@ -588,7 +588,7 @@ function CodingInterviewContent() {
                       <div>
                         <span className="font-medium text-gray-700">Output:</span>
                         <code className="ml-2 bg-gray-200 px-2 py-1 rounded text-sm">
-                          {example.output}
+                          {typeof example.output === 'object' ? JSON.stringify(example.output) : example.output}
                         </code>
                       </div>
                       {example.explanation && (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -225,6 +225,7 @@ const departments = [
 
 export default function JobDetailsStep() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const {
     state,
@@ -659,8 +660,11 @@ export default function JobDetailsStep() {
   // Load existing campaign data if editing
   useEffect(() => {
     const loadCampaignData = async () => {
-      // Campaign data is now loaded automatically via Redis in the job campaign store
-      const campaignId = state.campaignId;
+      // Check if we have a campaign ID from URL parameters (for direct editing)
+      const urlCampaignId = searchParams.get('campaignId') || searchParams.get('id');
+      
+      // Use URL campaign ID if available, otherwise use store campaign ID
+      const campaignId = urlCampaignId || state.campaignId;
 
       if (!campaignId) {
         // No campaign ID means we're creating a new campaign
@@ -687,20 +691,27 @@ export default function JobDetailsStep() {
             targetHireDate: "",
             isRemote: false,
             isHybrid: false,
+            courseDegree: "",
+            specialization: "",
+            salaryNegotiable: false,
           });
           setIsEditMode(false);
         }
         return;
       }
 
-      if (campaignId && campaignId !== state.campaignId) {
+      // If we have a campaign ID (either from URL or store), load the campaign data
+      if (campaignId) {
         try {
           setLoading(true);
+          console.log('Loading campaign data for ID:', campaignId);
+          
           const response = await fetch(`/api/campaigns/jobs/${campaignId}`);
           if (response.ok) {
             const data = await response.json();
             if (data.success && data.data) {
               const campaign = data.data;
+              console.log('Loaded campaign data:', campaign);
 
               // Update the store with the loaded campaign data
               setCampaignId(campaignId);
@@ -741,25 +752,37 @@ export default function JobDetailsStep() {
                         .filter(Boolean)
                     : (campaign as any).requiredSkills
                   : [],
-                applicationDeadline: campaign.applicationDeadline || "",
-                targetHireDate: campaign.targetHireDate || "",
+                applicationDeadline: campaign.applicationDeadline 
+                  ? campaign.applicationDeadline.split('T')[0] 
+                  : "",
+                targetHireDate: campaign.targetHireDate 
+                  ? campaign.targetHireDate.split('T')[0] 
+                  : "",
                 isRemote: campaign.isRemote || false,
                 isHybrid: campaign.isHybrid || false,
+                courseDegree: campaign.courseDegree || "",
+                specialization: campaign.specialization || "",
+                salaryNegotiable: campaign.salaryNegotiable || false,
+                experienceMin: campaign.experienceMin || undefined,
+                experienceMax: campaign.experienceMax || undefined,
               });
 
               setIsEditMode(true);
-              toast.success("Campaign data loaded successfully");
+              setHasUnsavedChanges(false); // Reset unsaved changes flag when loading
+              
+              console.log('Campaign data loaded successfully');
+              toast.success('Campaign data loaded for editing');
+            } else {
+              console.error('Failed to load campaign data:', data.message);
+              toast.error('Failed to load campaign data');
             }
           } else {
-            console.error("Failed to load campaign data");
-            toast.error("Failed to load campaign data");
-            // Clear invalid campaign ID - handled by Redis store
-            resetCampaign();
+            console.error('Failed to fetch campaign:', response.status);
+            toast.error('Failed to load campaign data');
           }
         } catch (error) {
           console.error("Error loading campaign data:", error);
-          toast.error("Error loading campaign data");
-          resetCampaign(); // Clear campaign data via Redis store
+          toast.error('Error loading campaign data');
         } finally {
           setLoading(false);
         }
@@ -767,7 +790,7 @@ export default function JobDetailsStep() {
     };
 
     loadCampaignData();
-  }, [session?.user?.companyId]);
+  }, [session?.user?.companyId, searchParams]); // Add searchParams as dependency
 
   // Load templates and company info on mount
   useEffect(() => {
@@ -986,7 +1009,7 @@ export default function JobDetailsStep() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-3xl font-medium text-gray-900 mb-2">
-                Create Job Campaigns
+                {isEditMode ? "Edit Job Campaign" : "Create Job Campaign"}
               </h1>
             </div>
             <div className="flex items-center gap-3">
@@ -1121,56 +1144,6 @@ export default function JobDetailsStep() {
                     </div>
                   </motion.div>
                 </div>
-
-                {/* Job Post Selection */}
-                {creationMode === 'from-post' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-4 pt-4 border-t border-gray-200"
-                  >
-                    <Label htmlFor="jobPostSelect" className="text-sm font-medium">
-                      Select Job Post
-                    </Label>
-                    {loadingJobPosts ? (
-                      <div className="flex items-center gap-2 py-4">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm text-gray-600">Loading job posts...</span>
-                      </div>
-                    ) : availablePosts.length > 0 ? (
-                      <Select value={selectedPostId} onValueChange={handleJobPostSelection}>
-                        <SelectTrigger className="mt-2">
-                          <SelectValue placeholder="Choose a job post to use as template" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availablePosts.map((post) => (
-                            <SelectItem key={post.id} value={post.id}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{post.title}</span>
-                                <span className="text-xs text-gray-500">
-                                  {post.department} • {post.location} • {post.employeeType}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          No job posts found. You can create job posts from the{" "}
-                          <a 
-                            href="/dashboard/posts" 
-                            className="underline font-medium hover:text-yellow-900"
-                          >
-                            Posts section
-                          </a>.
-                        </p>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
               </div>
 
               {/* Basic Information */}
@@ -1207,63 +1180,75 @@ export default function JobDetailsStep() {
                     <Label htmlFor="jobTitle" className="text-sm font-medium">
                       Job Title *
                     </Label>
-                    <div className="flex gap-2">
-                      <div className="flex-1">
-                        <Input
-                          id="jobTitle"
-                          placeholder="e.g., Senior Software Engineer"
-                          value={state.jobDetails.jobTitle || ""}
-                          onChange={(e) =>
-                            handleInputChange("jobTitle", e.target.value)
+                    {creationMode === 'custom' ? (
+                      <Input
+                        id="jobTitle"
+                        placeholder="e.g., Senior Software Engineer"
+                        value={state.jobDetails.jobTitle || ""}
+                        onChange={(e) =>
+                          handleInputChange("jobTitle", e.target.value)
+                        }
+                        className={`h-11 ${
+                          validationErrors.jobTitle
+                            ? "border-red-300 focus:ring-red-500"
+                            : ""
+                        }`}
+                      />
+                    ) : (
+                      <Select
+                        value={selectedPostId}
+                        onValueChange={(val) => {
+                          setSelectedPostId(val);
+                          const post = availablePosts.find(p => p.id === val);
+                          if (post) {
+                            updateJobDetails({
+                              jobTitle: post.title || "",
+                              department: post.department || "",
+                              location: post.location || "",
+                              experienceLevel: post.experienceLevel || "",
+                              employeeType: post.employeeType || "",
+                              salaryMin: post.salaryMin || undefined,
+                              salaryMax: post.salaryMax || undefined,
+                              currency: post.currency || state.jobDetails.currency,
+                              isRemote: !!post.isRemote,
+                              isHybrid: !!post.isHybrid,
+                              salaryNegotiable: !!post.salaryNegotiable,
+                              experienceMin: post.experienceMin ?? state.jobDetails.experienceMin,
+                              experienceMax: post.experienceMax ?? state.jobDetails.experienceMax,
+                              courseDegree: post.courseDegree || '',
+                              specialization: post.specialization || '',
+                            });
+                            setHasUnsavedChanges(true);
                           }
-                          className={`h-11 ${
-                            validationErrors.jobTitle
-                              ? "border-red-300 focus:ring-red-500"
-                              : ""
-                          }`}
-                        />
-                      </div>
-                      <div className="min-w-[240px]">
-                        <Select
-                          value={selectedPostId}
-                          onValueChange={(val) => {
-                            setSelectedPostId(val);
-                            const post = availablePosts.find(p => p.id === val);
-                            if (post) {
-                              updateJobDetails({
-                                jobTitle: post.title || "",
-                                department: post.department || "",
-                                location: post.location || "",
-                                experienceLevel: post.experienceLevel || "",
-                                employeeType: post.employeeType || "",
-                                salaryMin: post.salaryMin || undefined,
-                                salaryMax: post.salaryMax || undefined,
-                                currency: post.currency || state.jobDetails.currency,
-                                isRemote: !!post.isRemote,
-                                isHybrid: !!post.isHybrid,
-                                salaryNegotiable: !!post.salaryNegotiable,
-                                experienceMin: post.experienceMin ?? state.jobDetails.experienceMin,
-                                experienceMax: post.experienceMax ?? state.jobDetails.experienceMax,
-                                courseDegree: post.courseDegree || '',
-                                specialization: post.specialization || '',
-                              });
-                              setHasUnsavedChanges(true);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-11">
-                            <SelectValue placeholder="Select from Posts" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availablePosts.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
+                        }}
+                      >
+                        <SelectTrigger className={`h-11 ${
+                          validationErrors.jobTitle
+                            ? "border-red-300 focus:ring-red-500"
+                            : ""
+                        }`}>
+                          <SelectValue placeholder={
+                            loadingJobPosts 
+                              ? "Loading job posts..." 
+                              : availablePosts.length === 0 
+                                ? "No job posts available"
+                                : "Select a job title from posts"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePosts.map((post) => (
+                            <SelectItem key={post.id} value={post.id}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{post.title}</span>
+                                <span className="text-xs text-gray-500">
+                                  {post.department} • {post.location}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     {validationErrors.jobTitle && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
                         <Info className="w-4 h-4 mr-1" />

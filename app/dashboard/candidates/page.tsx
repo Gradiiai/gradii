@@ -418,12 +418,103 @@ export default function CandidatesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="ml-2 text-sm sm:text-base text-gray-600">
-            Loading candidates...
-          </p>
+      <div className="min-h-screen flex flex-col">
+        <div className="container mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+          {/* Header Skeleton */}
+          <div>
+            <div className="h-8 bg-gray-200 rounded w-48 animate-pulse"></div>
+          </div>
+
+          {/* Stats Cards Skeleton */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 sm:gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <div className="h-6 sm:h-7 bg-gray-200 rounded mb-1 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Filters Skeleton */}
+          <Card>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                <div className="h-10 bg-gray-200 rounded w-full sm:w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-full sm:w-32 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-full sm:w-36 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-full sm:w-44 animate-pulse"></div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tabs Skeleton */}
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="h-10 bg-gray-200 rounded px-4 animate-pulse w-20 sm:w-24"></div>
+              ))}
+            </div>
+
+            {/* Candidate Cards Skeleton */}
+            <div className="grid gap-3 sm:gap-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-3 sm:p-4">
+                    {/* Top Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                      <div className="w-full flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                        {/* Name and Avatar */}
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gray-200 rounded-full"></div>
+                          <div>
+                            <div className="h-5 bg-gray-200 rounded w-32 mb-1"></div>
+                            <div className="h-4 bg-gray-200 rounded w-24"></div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                          <div className="h-6 bg-gray-200 rounded w-20"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded-full"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded"></div>
+                          <div className="h-8 w-24 bg-gray-200 rounded"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row */}
+                    <div className="mt-3 sm:mt-4 space-y-2">
+                      <div className="flex flex-wrap gap-2 sm:gap-4">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                          <div className="h-4 bg-gray-200 rounded w-24"></div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                          <div className="h-4 bg-gray-200 rounded w-20"></div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                          <div className="h-4 bg-gray-200 rounded w-28"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

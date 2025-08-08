@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useJobCampaignStore } from '@/shared/store/jobCampaignStore';
 import { handleCampaignNotFound, clearLegacyLocalStorage, isValidCampaignId } from '@/lib/utils/campaignStorage';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/shared/card';
 import { Button } from '@/components/ui/shared/button';
 import { Input } from '@/components/ui/shared/input';
@@ -17,10 +17,9 @@ import { Checkbox } from '@/components/ui/shared/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/shared/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
-import DirectInterviewScheduler from "@/components/admin/DirectInterviewScheduler";
-import CampaignInterviewScheduler from "@/components/admin/CampaignInterviewScheduler";
 import CandidateProfileModal from "@/components/candidate/candidateProfileModal";
-import { Search, Filter, Download, Upload, Mail, Phone, MapPin, Calendar, User, Briefcase, FileText, Star, Users, TrendingUp, Trash2, MoreHorizontal, CheckCircle, AlertTriangle, XCircle, X, RefreshCw, ThumbsUp, ThumbsDown, Clock, ArrowRight } from 'lucide-react';
+import CircularProgress from "@/components/admin/CircularProgress";
+import { Search, Filter, Download, Upload, Mail, Phone, MapPin, Calendar, User, Briefcase, FileText, Star, Users, TrendingUp, Trash2, MoreHorizontal, CheckCircle, AlertTriangle, XCircle, X, RefreshCw, RefreshCcw, ThumbsUp, ThumbsDown, Clock, ArrowRight, EyeIcon, Trash } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Candidate {
@@ -69,6 +68,8 @@ export default function JobCampaignCandidatesPage() {
   const { data: session } = useSession();
   const { state, setCampaignId } = useJobCampaignStore();
   const { campaignId, jobDetails } = state;
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,180 +92,44 @@ export default function JobCampaignCandidatesPage() {
     details?: any;
   }>({ show: false, type: 'success', message: '', details: null });
   const [recalculatingScores, setRecalculatingScores] = useState<Set<string>>(new Set());
-  
-  // New state for approval/rejection
-  const [approvalDialog, setApprovalDialog] = useState<{
-    open: boolean;
-    action: 'approve' | 'reject' | 'next_round' | null;
-    candidate: Candidate | null;
-    notes: string;
-  }>({
-    open: false,
-    action: null,
-    candidate: null,
-    notes: ''
-  });
-  const [processingAction, setProcessingAction] = useState(false);
-  const [interviewSetups, setInterviewSetups] = useState<InterviewSetup[]>([]);
-  const [candidateInterviews, setCandidateInterviews] = useState<Record<string, CandidateInterview[]>>({});
 
-  const router = useRouter();
-
-  // Clear legacy localStorage and redirect if no campaign selected
+  // Clear legacy localStorage and handle campaign selection
   useEffect(() => {
     clearLegacyLocalStorage();
     
-    if (!campaignId) {
+    // Check if campaignId is provided in URL params
+    const urlCampaignId = searchParams.get('campaignId');
+    
+    if (urlCampaignId) {
+      // Validate and set campaign ID from URL
+      if (isValidCampaignId(urlCampaignId)) {
+        if (campaignId !== urlCampaignId) {
+          setCampaignId(urlCampaignId);
+        }
+      } else {
+        console.warn('Invalid campaign ID in URL:', urlCampaignId);
+        toast.error('Invalid campaign ID. Redirecting to campaign list...');
+        setTimeout(() => {
+          router.push('/dashboard/job-campaign');
+        }, 1500);
+      }
+    } else if (!campaignId) {
       toast.error('No campaign selected. Redirecting to campaign list...');
       setTimeout(() => {
         router.push('/dashboard/job-campaign');
       }, 1500);
     }
-  }, [campaignId, router]);
+  }, [searchParams, campaignId, setCampaignId, router]);
 
   useEffect(() => {
     if (campaignId) {
       fetchCandidates();
-      fetchInterviewSetups();
     }
   }, [campaignId]);
-
-  // Fetch interview setups for the campaign
-  const fetchInterviewSetups = async () => {
-    if (!campaignId) return;
-    
-    try {
-      const response = await fetch(`/api/campaigns/jobs/${campaignId}/interview-setups`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setInterviewSetups(data.data || []);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching interview setups:', error);
-    }
-  };
-
-  // Fetch candidate interviews for a specific candidate
-  const fetchCandidateInterviews = async (candidateId: string) => {
-    try {
-      const response = await fetch(`/api/candidates/${candidateId}/interviews`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setCandidateInterviews(prev => ({
-            ...prev,
-            [candidateId]: data.data || []
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching candidate interviews:', error);
-    }
-  };
 
   // Check if candidate is from direct interview or campaign
   const isDirectInterview = (candidate: Candidate) => {
     return candidate.campaignName === 'Direct Interview' || candidate.jobTitle === 'Direct Interview';
-  };
-
-  // Get next round for candidate
-  const getNextRound = (candidateId: string) => {
-    const interviews = candidateInterviews[candidateId] || [];
-    const completedRounds = interviews.filter(i => i.status === 'completed' && i.score && i.score >= 70);
-    const nextRoundNumber = completedRounds.length + 1;
-    return interviewSetups.find(setup => setup.roundNumber === nextRoundNumber && setup.isActive);
-  };
-
-  // Get candidate's current round status
-  const getCandidateRoundStatus = (candidateId: string) => {
-    const interviews = candidateInterviews[candidateId] || [];
-    const completedRounds = interviews.filter(i => i.status === 'completed');
-    const passedRounds = completedRounds.filter(i => i.score && i.score >= 70);
-    const totalRounds = interviewSetups.filter(s => s.isActive).length;
-    
-    return {
-      completed: completedRounds.length,
-      passed: passedRounds.length,
-      total: totalRounds,
-      canProceed: passedRounds.length === completedRounds.length && completedRounds.length > 0
-    };
-  };
-
-  // Handle candidate action (approve/reject/next round)
-  const handleCandidateAction = (candidate: Candidate, action: 'approve' | 'reject' | 'next_round') => {
-    setApprovalDialog({
-      open: true,
-      action,
-      candidate,
-      notes: ''
-    });
-    
-    // Fetch candidate interviews if not already loaded
-    if (!candidateInterviews[candidate.id]) {
-      fetchCandidateInterviews(candidate.id);
-    }
-  };
-
-  // Process approval/rejection
-  const confirmCandidateAction = async () => {
-    if (!approvalDialog.candidate || !approvalDialog.action) return;
-    
-    setProcessingAction(true);
-    
-    try {
-      const payload: any = {
-        action: approvalDialog.action,
-        recruiterNotes: approvalDialog.notes.trim() || undefined,
-      };
-      
-      if (approvalDialog.action === 'reject') {
-        payload.rejectionReason = approvalDialog.notes.trim() || 'No specific reason provided';
-      }
-      
-      const response = await fetch(`/api/candidates/${approvalDialog.candidate.id}/approval`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        // Update candidate status in local state
-        setCandidates(prev => prev.map(c => 
-          c.id === approvalDialog.candidate!.id 
-            ? { ...c, status: result.data.status }
-            : c
-        ));
-        
-        let message = '';
-        switch (approvalDialog.action) {
-          case 'approve':
-            message = `Candidate ${approvalDialog.candidate.name} has been approved`;
-            break;
-          case 'reject':
-            message = `Candidate ${approvalDialog.candidate.name} has been rejected`;
-            break;
-          case 'next_round':
-            message = `Candidate ${approvalDialog.candidate.name} has been moved to the next round`;
-            break;
-        }
-        
-        toast.success(message);
-        setApprovalDialog({ open: false, action: null, candidate: null, notes: '' });
-      } else {
-        toast.error(result.error || 'Failed to process action');
-      }
-    } catch (error) {
-      console.error('Error processing approval action:', error);
-      toast.error('Network error occurred while processing action');
-    } finally {
-      setProcessingAction(false);
-    }
   };
 
   // Selection and deletion functions
@@ -678,124 +543,112 @@ export default function JobCampaignCandidatesPage() {
 
   if (!campaignId) {
     return (
-      <div className="container mx-auto p-6">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Campaign Selected</h3>
-            <p className="text-gray-600">Please select a campaign to view candidates.</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex flex-col">
+        <div className="container mx-auto px-4 py-4 sm:py-6">
+          <Card>
+            <CardContent className="p-6 sm:p-8 text-center">
+              <Users className="h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No Campaign Selected</h3>
+              <p className="text-sm sm:text-base text-gray-600">Please select a campaign to view candidates.</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header skeleton */}
-        <div className="flex justify-between items-center">
-          <div>
-            <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse mb-2"></div>
-            <div className="h-4 w-80 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-          <div className="flex gap-2">
-            <div className="h-10 w-32 bg-gray-200 rounded-md animate-pulse"></div>
-            <div className="h-10 w-24 bg-gray-200 rounded-md animate-pulse"></div>
-          </div>
-        </div>
-
-        {/* Stats Cards skeleton */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((index) => (
-            <Card key={index}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-2">
-                    <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-6 w-12 bg-gray-200 rounded animate-pulse"></div>
-                  </div>
-                  <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Filters skeleton */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="h-10 w-full bg-gray-200 rounded-md animate-pulse"></div>
-              </div>
-              <div className="h-10 w-32 bg-gray-200 rounded-md animate-pulse"></div>
-              <div className="h-10 w-32 bg-gray-200 rounded-md animate-pulse"></div>
-              <div className="h-10 w-32 bg-gray-200 rounded-md animate-pulse"></div>
+      <div className="min-h-screen flex flex-col">
+        <div className="container mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+          {/* Header skeleton */}
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="h-6 sm:h-8 w-48 sm:w-64 bg-gray-200 rounded-lg animate-pulse mb-2"></div>
+              <div className="h-4 w-64 sm:w-80 bg-gray-200 rounded animate-pulse"></div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Tabs skeleton */}
-        <div className="space-y-4">
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-            {[1, 2, 3, 4, 5, 6, 7].map((index) => (
-              <div key={index} className="flex-1 h-10 bg-gray-200 rounded-md animate-pulse"></div>
-            ))}
+            <div className="flex gap-2">
+              <div className="h-8 sm:h-10 w-24 sm:w-32 bg-gray-200 rounded-md animate-pulse"></div>
+              <div className="h-8 sm:h-10 w-20 sm:w-24 bg-gray-200 rounded-md animate-pulse"></div>
+            </div>
           </div>
 
-          {/* Candidate cards skeleton */}
-          <div className="grid gap-4">
-            {[1, 2, 3, 4, 5].map((index) => (
+          {/* Stats Cards skeleton */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+            {[1, 2, 3, 4].map((index) => (
               <Card key={index}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-4 flex-1">
-                      <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
-                      <div className="h-12 w-12 bg-gray-200 rounded-full animate-pulse"></div>
-                      <div className="space-y-2 flex-1">
-                        <div className="h-5 w-48 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="h-4 w-64 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="flex space-x-4">
-                          <div className="h-3 w-20 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
-                          <div className="h-3 w-28 bg-gray-200 rounded animate-pulse"></div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="h-6 w-16 bg-gray-200 rounded-full animate-pulse"></div>
-                      <div className="space-y-1 text-right">
-                        <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
-                      </div>
-                      <div className="flex space-x-1">
-                        {[1, 2, 3, 4, 5].map((btnIndex) => (
-                          <div key={btnIndex} className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Skills tags skeleton */}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {[1, 2, 3, 4].map((skillIndex) => (
-                      <div key={skillIndex} className="h-6 w-16 bg-gray-200 rounded-full animate-pulse"></div>
-                    ))}
-                  </div>
-                  
-                  {/* Interview rounds skeleton */}
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-3"></div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[1, 2, 3].map((roundIndex) => (
-                        <div key={roundIndex} className="h-8 bg-gray-200 rounded animate-pulse"></div>
-                      ))}
-                    </div>
-                  </div>
+                <CardContent className="p-3 sm:p-4 text-center">
+                  <div className="h-5 sm:h-6 w-12 sm:w-16 bg-gray-200 rounded mb-1 animate-pulse mx-auto"></div>
+                  <div className="h-3 sm:h-4 w-16 sm:w-20 bg-gray-200 rounded animate-pulse mx-auto"></div>
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          {/* Filters skeleton */}
+          <Card>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="h-10 w-full bg-gray-200 rounded-md animate-pulse"></div>
+                </div>
+                <div className="h-10 w-full sm:w-32 bg-gray-200 rounded-md animate-pulse"></div>
+                <div className="h-10 w-full sm:w-32 bg-gray-200 rounded-md animate-pulse"></div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tabs skeleton */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
+              {[1, 2, 3, 4, 5, 6, 7].map((index) => (
+                <div key={index} className="h-10 bg-gray-200 rounded-md animate-pulse"></div>
+              ))}
+            </div>
+
+            {/* Candidate cards skeleton */}
+            <div className="grid gap-3 sm:gap-4">
+              {[1, 2, 3, 4, 5].map((index) => (
+                <Card key={index}>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                      <div className="w-full flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                        <div className="flex items-center space-x-2 sm:space-x-3">
+                          <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gray-200 rounded-full animate-pulse"></div>
+                          <div>
+                            <div className="h-4 sm:h-5 w-32 sm:w-48 bg-gray-200 rounded animate-pulse mb-1"></div>
+                            <div className="h-3 sm:h-4 w-24 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                          <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-6 w-12 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 sm:mt-4 space-y-2">
+                      <div className="flex flex-wrap gap-2 sm:gap-4">
+                        <div className="h-3 sm:h-4 w-32 sm:w-40 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-3 sm:h-4 w-24 sm:w-32 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-3 sm:h-4 w-20 sm:w-28 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-3 sm:h-4 w-28 sm:w-36 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {[1, 2, 3, 4].map((skillIndex) => (
+                          <div key={skillIndex} className="h-5 w-12 sm:w-16 bg-gray-200 rounded animate-pulse"></div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -803,199 +656,200 @@ export default function JobCampaignCandidatesPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Campaign Candidates</h1>
-          <p className="text-gray-600 mt-1">
-            {jobDetails.campaignName ? `${jobDetails.campaignName} - ${jobDetails.jobTitle}` : 'Manage candidates for this campaign'}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowUpload(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Resume
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold">{candidatesByStatus.all}</div>
-                <p className="text-xs text-gray-600">Total Candidates</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-green-600">{candidatesByStatus.shortlisted}</div>
-                <p className="text-xs text-gray-600">Shortlisted</p>
-              </div>
-              <Star className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-purple-600">{candidatesByStatus.interview}</div>
-                <p className="text-xs text-gray-600">In Interview</p>
-              </div>
-              <Calendar className="h-8 w-8 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-orange-600">{averageScore}%</div>
-                <p className="text-xs text-gray-600">Avg Score</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search candidates by name or email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="applied">Applied</SelectItem>
-                <SelectItem value="screening">Screening</SelectItem>
-                <SelectItem value="shortlisted">Shortlisted</SelectItem>
-                <SelectItem value="interview">Interview</SelectItem>
-                <SelectItem value="hired">Hired</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="manual_upload">Manual Upload</SelectItem>
-                <SelectItem value="job_board">Job Board</SelectItem>
-                <SelectItem value="referral">Referral</SelectItem>
-                <SelectItem value="direct_application">Direct Application</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" onClick={fetchCandidates}>
-              <Filter className="h-4 w-4 mr-2" />
-              Apply Filters
+    <div className="min-h-screen flex flex-col">
+      <div className="container mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-medium">Campaign Candidates</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              {jobDetails.campaignName ? `${jobDetails.campaignName} - ${jobDetails.jobTitle}` : 'Manage candidates for this campaign'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowUpload(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Resume
+            </Button>
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Bulk Actions */}
-      {selectedCandidates.size > 0 && (
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <Card>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <div className="text-lg sm:text-xl font-medium mb-1">
+                {candidatesByStatus.all}
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600">Total Candidates</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <div className="text-lg sm:text-xl font-medium mb-1 text-green-600">
+                {candidatesByStatus.shortlisted}
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600">Shortlisted</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <div className="text-lg sm:text-xl font-medium mb-1 text-purple-600">
+                {candidatesByStatus.interview}
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600">In Interview</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3 sm:p-4 text-center">
+              <div className="text-lg sm:text-xl font-medium mb-1 text-orange-600">
+                {averageScore}%
+              </div>
+              <p className="text-xs sm:text-sm text-gray-600">Avg Score</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Checkbox
-                  checked={selectedCandidates.size === filteredCandidates.length}
-                  onCheckedChange={handleSelectAll}
-                />
-                <span className="text-sm font-medium">
-                  {selectedCandidates.size} of {filteredCandidates.length} candidates selected
-                </span>
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search candidates by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-full"
+                  />
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBulkRecalculateScores}
-                  disabled={Array.from(selectedCandidates).some(id => recalculatingScores.has(id))}
-                >
-                  {Array.from(selectedCandidates).some(id => recalculatingScores.has(id)) ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                      Recalculating Talent Fit Scores...
-                    </div>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Recalculate Talent Fit Scores ({selectedCandidates.size})
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleBulkDelete}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Deleting...
-                    </div>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Selected ({selectedCandidates.size})
-                    </>
-                  )}
-                </Button>
-              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="applied">Applied</SelectItem>
+                  <SelectItem value="screening">Screening</SelectItem>
+                  <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                  <SelectItem value="interview">Interview</SelectItem>
+                  <SelectItem value="hired">Hired</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="Filter by source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="manual_upload">Manual Upload</SelectItem>
+                  <SelectItem value="job_board">Job Board</SelectItem>
+                  <SelectItem value="referral">Referral</SelectItem>
+                  <SelectItem value="direct_application">Direct Application</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Candidates Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="all">All ({candidatesByStatus.all})</TabsTrigger>
-          <TabsTrigger value="applied">Applied ({candidatesByStatus.applied})</TabsTrigger>
-          <TabsTrigger value="screening">Screening ({candidatesByStatus.screening})</TabsTrigger>
-          <TabsTrigger value="shortlisted">Shortlisted ({candidatesByStatus.shortlisted})</TabsTrigger>
-          <TabsTrigger value="interview">Interview ({candidatesByStatus.interview})</TabsTrigger>
-          <TabsTrigger value="hired">Hired ({candidatesByStatus.hired})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({candidatesByStatus.rejected})</TabsTrigger>
-        </TabsList>
+        {/* Bulk Actions */}
+        {selectedCandidates.size > 0 && (
+          <Card>
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <Checkbox
+                    checked={selectedCandidates.size === filteredCandidates.length}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm font-medium">
+                    {selectedCandidates.size} of {filteredCandidates.length} candidates selected
+                  </span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkRecalculateScores}
+                    disabled={Array.from(selectedCandidates).some(id => recalculatingScores.has(id))}
+                    className="text-xs sm:text-sm"
+                  >
+                    {Array.from(selectedCandidates).some(id => recalculatingScores.has(id)) ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                        Recalculating...
+                      </div>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Recalculate Scores ({selectedCandidates.size})
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleBulkDelete}
+                    disabled={isDeleting}
+                    className="text-xs sm:text-sm"
+                  >
+                    {isDeleting ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Deleting...
+                      </div>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Selected ({selectedCandidates.size})
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        <TabsContent value={activeTab} className="mt-6">
+        {/* Candidates Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3 overflow-x-auto w-full">
+            <TabsTrigger value="all" className="text-xs sm:text-sm">
+              All ({candidatesByStatus.all})
+            </TabsTrigger>
+            <TabsTrigger value="applied" className="text-xs sm:text-sm">
+              Applied ({candidatesByStatus.applied})
+            </TabsTrigger>
+            <TabsTrigger value="screening" className="text-xs sm:text-sm">
+              Screening ({candidatesByStatus.screening})
+            </TabsTrigger>
+            <TabsTrigger value="shortlisted" className="text-xs sm:text-sm">
+              Shortlisted ({candidatesByStatus.shortlisted})
+            </TabsTrigger>
+            <TabsTrigger value="interview" className="text-xs sm:text-sm">
+              Interview ({candidatesByStatus.interview})
+            </TabsTrigger>
+            <TabsTrigger value="hired" className="text-xs sm:text-sm">
+              Hired ({candidatesByStatus.hired})
+            </TabsTrigger>
+            <TabsTrigger value="rejected" className="text-xs sm:text-sm">
+              Rejected ({candidatesByStatus.rejected})
+            </TabsTrigger>
+          </TabsList>
+
+        <TabsContent value={activeTab} className="mt-4 sm:mt-6">
           {filteredCandidates.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No candidates found</h3>
-                <p className="text-gray-600">
+              <CardContent className="p-4 sm:p-6 text-center">
+                <User className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400 mx-auto mb-3 sm:mb-4" />
+                <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-2">No candidates found</h3>
+                <p className="text-xs sm:text-sm text-gray-600">
                   {candidates.length === 0 
                     ? "No candidates have applied to this campaign yet. Upload resumes or share the job posting to get started."
                     : "No candidates match your current filters."
@@ -1010,113 +864,179 @@ export default function JobCampaignCandidatesPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-3 sm:gap-4">
               {filteredCandidates.map((candidate) => {
                 return (
                   <Card key={candidate.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-4">
-                          <Checkbox
-                            checked={selectedCandidates.has(candidate.id)}
-                            onCheckedChange={() => handleSelectCandidate(candidate.id)}
-                            className="mt-1"
-                          />
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${candidate.name}`} />
-                            <AvatarFallback>
-                              {candidate.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-lg font-semibold">{candidate.name}</h3>
-                              <Badge className={getStatusColor(candidate.status)}>
-                                {candidate.status}
-                              </Badge>
-                              {candidate.source && (
-                                <Badge variant="outline" className="text-xs">
-                                  {candidate.source.replace('_', ' ')}
-                                </Badge>
+                    <CardContent className="p-3 sm:p-4">
+                      {/* Top Column */}
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                        <div className="w-full flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                          {/* Name and Job Title */}
+                          <div className="flex items-center space-x-2 sm:space-x-3">
+                            <Checkbox
+                              checked={selectedCandidates.has(candidate.id)}
+                              onCheckedChange={() => handleSelectCandidate(candidate.id)}
+                              className="mt-1"
+                            />
+                            <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${candidate.name}`} />
+                              <AvatarFallback>
+                                {candidate.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h3 className="text-sm sm:text-base font-semibold text-gray-900">{candidate.name}</h3>
+                              <p className="text-xs sm:text-sm text-gray-600">
+                                {candidate.jobTitle || jobDetails.jobTitle || 'Campaign Candidate'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Talent Fit Score, Resume and View Profile Buttons */}
+                          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                            <div 
+                              className="flex items-center gap-1 sm:gap-2 text-gray-500 hover:text-gray-700 cursor-pointer text-xs sm:text-sm transition-colors"
+                              onClick={() => handleRecalculateScore(candidate.id)}
+                            >
+                              {recalculatingScores.has(candidate.id) ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600"></div>
+                                  <p>Recalculating...</p>
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCcw size={14} />
+                                  <p>Recalculate</p>
+                                </>
                               )}
                             </div>
-                            <div className="space-y-1 text-sm text-gray-600">
-                              <div className="flex items-center gap-2">
-                                <Mail className="h-4 w-4" />
-                                <span>{candidate.email}</span>
-                              </div>
-                              {candidate.phone && (
-                                <div className="flex items-center gap-2">
-                                  <Phone className="h-4 w-4" />
-                                  <span>{candidate.phone}</span>
-                                </div>
-                              )}
-                              {candidate.location && (
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="h-4 w-4" />
-                                  <span>{candidate.location}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4" />
-                                <span>Applied {candidate.appliedDate ? new Date(candidate.appliedDate).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                }) : 'Unknown'}</span>
-                              </div>
-                              {candidate.talentFitScore && (
-                                <div className="flex items-center gap-2 mt-2">
-                                  <Star className="h-4 w-4 text-yellow-500" />
-                                  <span className="font-medium">{candidate.talentFitScore}%</span>
-                                  <span className="text-xs text-gray-500">Talent Fit</span>
-                                </div>
-                              )}
-                            </div>
-                            {(() => {
-                              let skillsArray = [];
-                              if (candidate.skills) {
-                                if (Array.isArray(candidate.skills)) {
-                                  skillsArray = candidate.skills;
-                                } else if (typeof candidate.skills === 'string') {
-                                  try {
-                                    skillsArray = JSON.parse(candidate.skills);
-                                    if (!Array.isArray(skillsArray)) {
-                                      skillsArray = [candidate.skills];
-                                    }
-                                  } catch {
-                                    skillsArray = [candidate.skills];
-                                  }
-                                }
-                              }
-                              
-                              return skillsArray.length > 0 && (
-                                <div className="mt-3">
-                                  <div className="flex flex-wrap gap-1">
-                                    {skillsArray.slice(0, 5).map((skill, index) => (
-                                      <Badge key={index} variant="secondary" className="text-xs">
-                                        {skill}
-                                      </Badge>
-                                    ))}
-                                    {skillsArray.length > 5 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        +{skillsArray.length - 5} more
-                                      </Badge>
+                            {candidate.talentFitScore && (
+                              <div className="relative group flex items-center gap-1 sm:gap-2 text-xs">
+                                <div>
+                                  <CircularProgress score={candidate.talentFitScore} />
+                                  <div className="absolute right-0 bottom-full mb-2 hidden group-hover:flex flex-col bg-white rounded-md border-[1px] border-gray-200 shadow-sm z-20 p-3 sm:p-4 text-xs sm:text-sm text-gray-700 transition-all duration-75 w-80 sm:w-96">
+                                    {candidate.skills &&
+                                      typeof candidate.skills === "string" &&
+                                      (() => {
+                                        try {
+                                          const skills = JSON.parse(candidate.skills);
+                                          const bgColors = [
+                                            "bg-[#FFDCFC]",
+                                            "bg-[#F1FFE9]",
+                                            "bg-[#FFE5D3]",
+                                            "bg-[#DAE4FF]",
+                                            "bg-[#CCF8FE]",
+                                          ];
+                                          const getRandomColor = () =>
+                                            bgColors[
+                                              Math.floor(
+                                                Math.random() * bgColors.length
+                                              )
+                                            ];
+                                          return (
+                                            <div className="space-y-3 sm:space-y-4">
+                                              {skills.technical?.length > 0 && (
+                                                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                                  <span className="font-semibold text-gray-900 text-xs sm:text-sm">
+                                                    Technical Skills:
+                                                  </span>
+                                                  <ul className="flex flex-wrap gap-1 sm:gap-2">
+                                                    {skills.technical
+                                                      .slice(0, 2)
+                                                      .map((skill: string, index: number) => (
+                                                        <li
+                                                          key={index}
+                                                          className={`text-gray-700 list-none px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-3xl text-xs ${getRandomColor()}`}
+                                                        >
+                                                          {skill}
+                                                        </li>
+                                                      ))}
+                                                  </ul>
+                                                </div>
+                                              )}
+                                              {skills.languages?.length > 0 && (
+                                                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                                  <span className="font-semibold text-gray-900 text-xs sm:text-sm">
+                                                    Languages:
+                                                  </span>
+                                                  <ul className="flex flex-wrap gap-1 sm:gap-2">
+                                                    {skills.languages
+                                                      .slice(0, 2)
+                                                      .map((lang: string, index: number) => (
+                                                        <li
+                                                          key={index}
+                                                          className={`text-gray-700 list-none px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-3xl text-xs ${getRandomColor()}`}
+                                                        >
+                                                          {lang}
+                                                        </li>
+                                                      ))}
+                                                  </ul>
+                                                </div>
+                                              )}
+                                              {skills.frameworks?.length > 0 && (
+                                                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                                  <span className="font-semibold text-gray-900 text-xs sm:text-sm">
+                                                    Frameworks:
+                                                  </span>
+                                                  <ul className="flex flex-wrap gap-1 sm:gap-2">
+                                                    {skills.frameworks
+                                                      .slice(0, 2)
+                                                      .map((framework: string, index: number) => (
+                                                        <li
+                                                          key={index}
+                                                          className={`text-gray-700 list-none px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-3xl text-xs ${getRandomColor()}`}
+                                                        >
+                                                          {framework}
+                                                        </li>
+                                                      ))}
+                                                  </ul>
+                                                </div>
+                                              )}
+                                              {skills.tools?.length > 0 && (
+                                                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                                  <span className="font-semibold text-gray-900 text-xs sm:text-sm">
+                                                    Tools:
+                                                  </span>
+                                                  <ul className="flex flex-wrap gap-1 sm:gap-2">
+                                                    {skills.tools
+                                                      .slice(0, 2)
+                                                      .map((tool: string, index: number) => (
+                                                        <li
+                                                          key={index}
+                                                          className={`text-gray-700 list-none px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-3xl text-xs ${getRandomColor()}`}
+                                                        >
+                                                          {tool}
+                                                        </li>
+                                                      ))}
+                                                  </ul>
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        } catch (error) {
+                                          return (
+                                            <div className="text-red-600 text-xs sm:text-sm">
+                                              Error parsing skills
+                                            </div>
+                                          );
+                                        }
+                                      })()}
+                                    {(!candidate.skills || 
+                                      (Array.isArray(candidate.skills) && candidate.skills.length === 0) ||
+                                      (typeof candidate.skills === 'string' && candidate.skills.trim() === '')) && (
+                                      <div className="text-gray-500 text-xs sm:text-sm">
+                                        No skills information available
+                                      </div>
                                     )}
                                   </div>
                                 </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          {/* First row - Basic actions */}
-                          <div className="flex flex-wrap gap-2">
+                              </div>
+                            )}
                             {candidate.resumeUrl && (
                               <Button variant="outline" size="sm" asChild>
                                 <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer">
-                                  <Download className="h-4 w-4 mr-1" />
-                                  Resume
+                                  <Download className="h-4 w-4" />
                                 </a>
                               </Button>
                             )}
@@ -1128,124 +1048,64 @@ export default function JobCampaignCandidatesPage() {
                                 setShowProfile(true);
                               }}
                             >
-                              View Profile
+                              <EyeIcon className="h-4 w-4" />
                             </Button>
-                            
-                            {/* Interview type indicator */}
-                            <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
-                              {isDirectInterview(candidate) ? (
-                                <>
-                                  <User className="h-3 w-3" />
-                                  Direct
-                                </>
-                              ) : (
-                                <>
-                                  <Briefcase className="h-3 w-3" />
-                                  Campaign ({interviewSetups.filter(s => s.isActive).length} rounds)
-                                </>
-                              )}
-                            </div>
-                            
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => handleRecalculateScore(candidate.id)}
-                                  disabled={recalculatingScores.has(candidate.id)}
-                                >
-                                  {recalculatingScores.has(candidate.id) ? (
-                                    <div className="flex items-center">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                                      Recalculating Talent Fit Score...
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <RefreshCw className="h-4 w-4 mr-2" />
-                                      Recalculate Talent Fit Score
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleDeleteCandidate(candidate.id)}
-                                  className="text-red-600 focus:text-red-600"
-                                  disabled={isDeleting}
-                                >
-                                  {isDeleting ? (
-                                    <div className="flex items-center">
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                                      Deleting...
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete Candidate
-                                    </>
-                                  )}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Select value={candidate.status}>
+                              <SelectTrigger className="w-full sm:w-36 text-xs sm:text-sm">
+                                <SelectValue placeholder="Status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="applied">Applied</SelectItem>
+                                <SelectItem value="screening">Screening</SelectItem>
+                                <SelectItem value="shortlisted">Shortlisted</SelectItem>
+                                <SelectItem value="interview">Interview</SelectItem>
+                                <SelectItem value="hired">Hired</SelectItem>
+                                <SelectItem value="rejected">Rejected</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="bg-red-100 hover:bg-red-200"
+                              onClick={() => handleDeleteCandidate(candidate.id)}
+                            >
+                              <Trash className="h-4 w-4 text-red-600" />
+                            </Button>
                           </div>
-                          
-                          {/* Second row - Candidate action buttons */}
-                          {candidate.status !== 'hired' && candidate.status !== 'rejected' && (
-                            <div className="flex flex-wrap gap-2">
-                              {/* Approve Button */}
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                className="text-green-600 border-green-600 hover:bg-green-50"
-                                onClick={() => handleCandidateAction(candidate, 'approve')}
-                              >
-                                <ThumbsUp className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              
-                              {/* Next Round Button (only for campaign candidates) */}
-                              {!isDirectInterview(candidate) && (() => {
-                                const roundStatus = getCandidateRoundStatus(candidate.id);
-                                const nextRound = getNextRound(candidate.id);
-                                
-                                return nextRound && roundStatus.canProceed && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                                    onClick={() => handleCandidateAction(candidate, 'next_round')}
-                                  >
-                                    <ArrowRight className="h-4 w-4 mr-1" />
-                                    Round {nextRound.roundNumber}
-                                  </Button>
-                                );
-                              })()}
-                              
-                              {/* Reject Button */}
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                className="text-red-600 border-red-600 hover:bg-red-50"
-                                onClick={() => handleCandidateAction(candidate, 'reject')}
-                              >
-                                <ThumbsDown className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                              
-                              <CampaignInterviewScheduler 
-                                candidateId={candidate.id} 
-                                candidateName={candidate.name} 
-                                candidateEmail={candidate.email}
-                                campaignId={campaignId || ''}
-                                interviewSetups={interviewSetups}
-                                onInterviewScheduled={() => {
-                                  fetchCandidates();
-                                  toast.success('Interview scheduled successfully!');
-                                }}
-                              />
+                        </div>
+                      </div>
+
+                      {/* Bottom Column */}
+                      <div className="text-xs sm:text-sm text-gray-600 flex flex-col sm:flex-row sm:justify-between mt-3 sm:mt-4 gap-2 sm:gap-4">
+                        <div className="flex flex-col w-full sm:w-auto space-y-2 sm:space-y-3">
+                          <div className="flex flex-wrap gap-2 sm:gap-4">
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <Mail className="h-4 w-4" />
+                              <span>{candidate.email}</span>
                             </div>
-                          )}
+                            <div className="flex items-center gap-1 sm:gap-2 text-nowrap">
+                              <Calendar className="h-4 w-4" />
+                              <span>
+                                Applied {candidate.appliedDate ? new Date(candidate.appliedDate).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                }) : 'Unknown'}
+                              </span>
+                            </div>
+                            {candidate.phone && (
+                              <div className="flex items-center gap-1 sm:gap-2">
+                                <Phone className="h-4 w-4" />
+                                <span>{candidate.phone ? candidate.phone : 'Unknown'}</span>
+                              </div>
+                            )}
+                            {candidate.location && (
+                              <div className="flex items-center gap-1 sm:gap-2 text-nowrap">
+                                <MapPin className="h-4 w-4" />
+                                <span>{candidate.location ? candidate.location : 'Unknown'}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -1392,100 +1252,7 @@ export default function JobCampaignCandidatesPage() {
           </div>
         </div>
       )}
-
-      {/* Candidate Approval Dialog */}
-      <Dialog open={approvalDialog.open} onOpenChange={(open) => setApprovalDialog(prev => ({ ...prev, open }))}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {approvalDialog.action === 'approve' ? 'Approve Candidate' :
-               approvalDialog.action === 'reject' ? 'Reject Candidate' :
-               'Next Interview Round'}
-            </DialogTitle>
-            <DialogDescription>
-              {approvalDialog.action === 'approve' && 'Are you sure you want to approve this candidate?'}
-              {approvalDialog.action === 'reject' && 'Are you sure you want to reject this candidate?'}
-              {approvalDialog.action === 'next_round' && `Send candidate to the next interview round?`}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {approvalDialog.candidate && (
-            <div className="space-y-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium">{approvalDialog.candidate.name}</h4>
-                <p className="text-sm text-gray-600">{approvalDialog.candidate.email}</p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs px-2 py-1 bg-gray-200 rounded">
-                    {isDirectInterview(approvalDialog.candidate) ? 'Direct Interview' : 'Campaign Interview'}
-                  </span>
-                  {!isDirectInterview(approvalDialog.candidate) && (
-                    <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                      {interviewSetups.filter(s => s.isActive).length} rounds
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {approvalDialog.action === 'next_round' && approvalDialog.candidate && (() => {
-                const nextRound = getNextRound(approvalDialog.candidate.id);
-                return nextRound && (
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <h5 className="font-medium text-blue-900">Next Round Details</h5>
-                    <p className="text-sm text-blue-700">Round {nextRound.roundNumber}: {nextRound.title}</p>
-                    <p className="text-xs text-blue-600 mt-1">{nextRound.description}</p>
-                  </div>
-                );
-              })()}
-
-              <div className="space-y-2">
-                <label htmlFor="approval-notes" className="text-sm font-medium">
-                  Notes (Optional)
-                </label>
-                <textarea
-                  id="approval-notes"
-                  value={approvalDialog.notes}
-                  onChange={(e) => setApprovalDialog(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Add any notes about this decision..."
-                  className="w-full p-2 border border-gray-300 rounded-md text-sm"
-                  rows={3}
-                />
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setApprovalDialog(prev => ({ ...prev, open: false }))}
-              disabled={processingAction}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={confirmCandidateAction}
-              disabled={processingAction}
-              className={
-                approvalDialog.action === 'approve' ? 'bg-green-600 hover:bg-green-700' :
-                approvalDialog.action === 'reject' ? 'bg-red-600 hover:bg-red-700' :
-                'bg-blue-600 hover:bg-blue-700'
-              }
-            >
-              {processingAction ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Processing...
-                </div>
-              ) : (
-                <>
-                  {approvalDialog.action === 'approve' && 'Approve Candidate'}
-                  {approvalDialog.action === 'reject' && 'Reject Candidate'}
-                  {approvalDialog.action === 'next_round' && 'Send to Next Round'}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      </div>
     </div>
   );
 }

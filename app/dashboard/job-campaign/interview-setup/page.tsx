@@ -398,10 +398,187 @@ export default function InterviewSetupPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading interview setup...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="h-9 w-64 bg-gray-200 rounded animate-pulse mb-2"></div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+            {/* Navigation Skeleton */}
+            <div className="mb-6">
+              <div className="h-12 w-full bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Template Selection Skeleton */}
+          <div className="mb-6">
+            <div className="border rounded-lg bg-white">
+              <div className="p-6 border-b">
+                <div className="space-y-3">
+                  <div className="h-6 w-48 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-1 w-60 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="h-8 w-28 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Interview Rounds Skeleton */}
+          <div className="space-y-6">
+            {[1, 2].map((index) => (
+              <div key={index} className="border-2 rounded-lg bg-white">
+                <div className="p-6 border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <div className="w-5 h-5 bg-gray-300 rounded animate-pulse"></div>
+                      </div>
+                      <div className="h-6 w-24 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="p-6 space-y-6">
+                  {/* Round Name, Time Limit, Randomize row */}
+                  <div className="w-full flex justify-between items-center gap-4">
+                    <div className="space-y-2 w-[40%]">
+                      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="space-y-2 w-[30%]">
+                      <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="space-y-2 w-[30%]">
+                      <div className="h-4 w-36 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-6 w-12 bg-gray-200 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
+
+                  {/* Question Bank Table Skeleton */}
+                  <div className="space-y-4">
+                    <div className="w-full border-collapse rounded-lg overflow-hidden">
+                      <div className="bg-purple-100">
+                        <div className="flex">
+                          <div className="p-2 pl-4 border flex-1">
+                            <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 pl-4 border flex-1">
+                            <div className="h-4 w-32 bg-gray-300 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 pl-4 border flex-1">
+                            <div className="h-4 w-28 bg-gray-300 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 pl-4 border flex-1">
+                            <div className="h-4 w-24 bg-gray-300 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 border w-12">
+                            <div className="h-6 w-6 bg-gray-300 rounded animate-pulse"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border">
+                        <div className="flex">
+                          <div className="p-2 flex-1">
+                            <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 flex-1">
+                            <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 flex-1">
+                            <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 flex-1">
+                            <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                          <div className="p-2 w-12">
+                            <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Instructions Skeleton */}
+                  <div className="space-y-2">
+                    <div className="h-4 w-44 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-20 w-full bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Auto-Scheduling Configuration Skeleton */}
+          <div className="mt-6">
+            <div className="bg-white border-2 rounded-lg">
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-2 rounded">
+                    <div className="flex items-center">
+                      <div className="w-9 h-9 bg-purple-100 rounded mr-2 flex items-center justify-center">
+                        <div className="w-5 h-5 bg-gray-300 rounded animate-pulse"></div>
+                      </div>
+                      <div className="h-6 w-64 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="h-6 w-12 bg-gray-200 rounded-full animate-pulse"></div>
+                  </div>
+                  <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                  <div className="grid grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="space-y-2">
+                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-6 p-2">
+                    <div className="space-y-2 w-[40%]">
+                      <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                    <div className="space-y-2 w-[60%]">
+                      <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                      <div className="flex flex-wrap gap-4">
+                        {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                          <div key={day} className="flex items-center space-x-2 mt-2">
+                            <div className="w-5 h-5 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons Skeleton */}
+          <div className="mt-8 flex justify-between">
+            <div className="h-10 w-48 bg-gray-200 rounded animate-pulse"></div>
+            <div className="flex gap-3">
+              <div className="h-10 w-24 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-10 w-36 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </div>
         </div>
       </div>
     );

@@ -1528,7 +1528,6 @@ export default function JobDetailsStep() {
                           <Sparkles className="w-4 h-4" />
                           {isGenerating ? (
                             <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
                               Generating...
                             </>
                           ) : (

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useJobCampaignStore } from '@/shared/store/jobCampaignStore';
+import { clearLegacyLocalStorage } from '@/lib/utils/campaignStorage';
 import {
   Card,
   CardContent,
@@ -130,21 +132,28 @@ export default function JobCampaignsPage() {
   // Get unique departments for filter
   const departments = [...new Set(campaigns.map((c) => c.department))].filter(Boolean);
 
+  const { setCampaignId } = useJobCampaignStore();
+
+  // Clear legacy localStorage on component mount
+  useEffect(() => {
+    clearLegacyLocalStorage();
+  }, []);
+
   // Handle creation of new campaign
   const handleCreateNew = () => {
-    localStorage.removeItem("currentJobCampaignId");
+    setCampaignId(''); // Clear current campaign
     router.push("/dashboard/job-campaign/job-details");
   };
 
   // Navigate to campaign details
   const handleViewCampaign = (campaignId: string) => {
-    localStorage.setItem("currentJobCampaignId", campaignId);
+    setCampaignId(campaignId);
     router.push("/dashboard/job-campaign/job-details");
   };
 
   // Navigate to edit campaign
   const handleEditCampaign = (campaignId: string) => {
-    localStorage.setItem("currentJobCampaignId", campaignId);
+    setCampaignId(campaignId);
     router.push("/dashboard/job-campaign/job-details");
   };
 

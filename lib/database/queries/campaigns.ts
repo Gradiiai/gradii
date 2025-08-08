@@ -465,11 +465,18 @@ export async function getJobCampaigns(params: {
 
 export async function getJobCampaignById(id: string) {
   try {
+    console.log(`Attempting to fetch campaign with ID: ${id}`);
     const [campaign] = await db
       .select()
       .from(jobCampaigns)
       .where(eq(jobCampaigns.id, id));
     
+    if (!campaign) {
+      console.log(`Campaign not found with ID: ${id}`);
+      return { success: false, error: 'Campaign not found', data: null };
+    }
+    
+    console.log(`Successfully fetched campaign: ${campaign.campaignName} (${campaign.id})`);
     return { success: true, data: campaign };
   } catch (error) {
     console.error('Error fetching job campaign:', error);

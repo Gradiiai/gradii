@@ -830,6 +830,14 @@ export default function JobDetailsStep() {
               const campaign = data.data;
               console.log('Loaded campaign data:', campaign);
 
+              // Check if this is a Direct Interview campaign (should be excluded)
+              if (campaign.campaignName === 'Direct Interview') {
+                console.error('Attempted to load Direct Interview campaign, redirecting to job campaigns list');
+                toast.error('Direct Interview campaigns cannot be edited here');
+                router.push('/dashboard/job-campaign');
+                return;
+              }
+
               // Update the store with the loaded campaign data
               setCampaignId(campaignId);
               updateJobDetails({
@@ -890,12 +898,24 @@ export default function JobDetailsStep() {
               console.log('Campaign data loaded successfully');
               toast.success('Campaign data loaded for editing');
             } else {
-              console.error('Failed to load campaign data:', data.message);
-              toast.error('Failed to load campaign data');
+              console.error('Failed to load campaign data:', data.error || data.message);
+              if (data.error === 'Campaign not found') {
+                toast.error('Campaign not found. It may have been deleted.');
+                router.push('/dashboard/job-campaign');
+                return;
+              } else {
+                toast.error('Failed to load campaign data');
+              }
             }
           } else {
             console.error('Failed to fetch campaign:', response.status);
-            toast.error('Failed to load campaign data');
+            if (response.status === 404) {
+              toast.error('Campaign not found. It may have been deleted or moved.');
+              router.push('/dashboard/job-campaign');
+              return;
+            } else {
+              toast.error(`Failed to load campaign data (${response.status})`);
+            }
           }
         } catch (error) {
           console.error("Error loading campaign data:", error);

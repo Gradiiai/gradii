@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useJobCampaignStore } from '@/shared/store/jobCampaignStore';
+import { handleCampaignNotFound, clearLegacyLocalStorage, isValidCampaignId } from '@/lib/utils/campaignStorage';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/shared/card';
 import { Button } from '@/components/ui/shared/button';
 import { Input } from '@/components/ui/shared/input';
@@ -106,15 +108,19 @@ export default function JobCampaignCandidatesPage() {
   const [interviewSetups, setInterviewSetups] = useState<InterviewSetup[]>([]);
   const [candidateInterviews, setCandidateInterviews] = useState<Record<string, CandidateInterview[]>>({});
 
-  // Load campaign ID from localStorage if not in store
+  const router = useRouter();
+
+  // Clear legacy localStorage and redirect if no campaign selected
   useEffect(() => {
+    clearLegacyLocalStorage();
+    
     if (!campaignId) {
-      const storedCampaignId = localStorage.getItem('currentJobCampaignId');
-      if (storedCampaignId) {
-        setCampaignId(storedCampaignId);
-      }
+      toast.error('No campaign selected. Redirecting to campaign list...');
+      setTimeout(() => {
+        router.push('/dashboard/job-campaign');
+      }, 1500);
     }
-  }, [campaignId, setCampaignId]);
+  }, [campaignId, router]);
 
   useEffect(() => {
     if (campaignId) {
@@ -515,6 +521,15 @@ export default function JobCampaignCandidatesPage() {
       return;
     }
     
+    // Validate campaign ID format
+    if (!isValidCampaignId(campaignId)) {
+      toast.error('Invalid campaign ID. Please refresh the page and try again.');
+      console.warn('Invalid campaign ID format:', campaignId);
+      // Clear invalid campaign ID from store
+      setCampaignId('');
+      return;
+    }
+    
     try {
       setLoading(true);
       const queryParams = new URLSearchParams();
@@ -532,6 +547,9 @@ export default function JobCampaignCandidatesPage() {
         } else {
           toast.error(data.error || 'Failed to fetch candidates');
         }
+      } else if (response.status === 404) {
+        // Use centralized error handling for campaign not found
+        handleCampaignNotFound(setCampaignId);
       } else {
         toast.error('Failed to fetch candidates');
       }
@@ -556,7 +574,28 @@ export default function JobCampaignCandidatesPage() {
   };
 
   const handleResumeUpload = async (files: FileList) => {
-    if (!files || files.length === 0 || !campaignId) return;
+    if (!files || files.length === 0) {
+      toast.error('Please select resume files to upload');
+      return;
+    }
+    
+    if (!campaignId) {
+      toast.error('No campaign selected. Please refresh the page and try again.');
+      return;
+    }
+    
+    // Validate campaign ID format (UUID)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(campaignId)) {
+      toast.error('Invalid campaign ID. Please refresh the page and try again.');
+      return;
+    }
+    
+    // Check if user is authenticated
+    if (!session?.user?.email) {
+      toast.error('You must be logged in to upload resumes');
+      return;
+    }
     
     setUploadingResume(true);
     try {
@@ -568,10 +607,12 @@ export default function JobCampaignCandidatesPage() {
       formData.append('source', 'manual_upload');
 
       console.log(`Uploading ${files.length} files to campaign: ${campaignId}`);
+      console.log('Current session:', session);
 
       const response = await fetch('/api/candidates/resumes/upload', {
         method: 'PUT',
         body: formData,
+        credentials: 'include', // Ensure cookies are sent
       });
 
       const data = await response.json();
@@ -583,7 +624,14 @@ export default function JobCampaignCandidatesPage() {
         fetchCandidates();
         setShowUpload(false);
       } else {
-        toast.error(data.error || 'Failed to upload resumes');
+        console.error('Resume upload failed:', data);
+        const errorMessage = data.details || data.error || 'Failed to upload resumes';
+        toast.error(errorMessage);
+        
+        // If campaign not found, use centralized error handling
+        if (data.error === 'Campaign not found') {
+          handleCampaignNotFound(setCampaignId);
+        }
       }
     } catch (error) {
       console.error('Error uploading resumes:', error);

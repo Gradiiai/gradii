@@ -935,9 +935,15 @@ export async function PUT(request: NextRequest) {
     }
 
     // Get campaign details for scoring
+    console.log(`Attempting to fetch campaign with ID: ${campaignId}`);
     const campaignResult = await getJobCampaignById(campaignId);
     if (!campaignResult.success || !campaignResult.data) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+      console.error(`Campaign not found with ID: ${campaignId}. Error: ${campaignResult.error}`);
+      return NextResponse.json({ 
+        error: 'Campaign not found', 
+        campaignId: campaignId,
+        details: 'The specified campaign does not exist or has been deleted. Please refresh the page and try again.'
+      }, { status: 404 });
     }
     const campaign = campaignResult.data;
 
@@ -1114,9 +1120,15 @@ export async function POST(request: NextRequest) {
     let targetCampaignId: string | null = campaignId;
     
     if (campaignId && campaignId.trim() !== '') {
+      console.log(`Attempting to fetch campaign with ID: ${campaignId}`);
       const campaignResult = await getJobCampaignById(campaignId);
       if (!campaignResult.success || !campaignResult.data) {
-        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+        console.error(`Campaign not found with ID: ${campaignId}. Error: ${campaignResult.error}`);
+        return NextResponse.json({ 
+          error: 'Campaign not found', 
+          campaignId: campaignId,
+          details: 'The specified campaign does not exist or has been deleted. Please refresh the page and try again.'
+        }, { status: 404 });
       }
       campaign = campaignResult.data;
     } else {

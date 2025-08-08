@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode, useCallback } from 'react';
 import { useRedisStorage } from '@/shared/hooks/useRedisStorage';
+import { clearLegacyLocalStorage, isValidCampaignId } from '@/lib/utils/campaignStorage';
 import {
   JobDetailsForm,
   InterviewRound,
@@ -249,6 +250,11 @@ const JobCampaignContext = createContext<JobCampaignContextType | undefined>(und
 export function JobCampaignProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(jobCampaignReducer, initialState);
 
+  // Clear legacy localStorage on mount
+  useEffect(() => {
+    clearLegacyLocalStorage();
+  }, []);
+
   // Use Redis storage for job campaign data
   const [redisState, setRedisState, isRedisLoading] = useRedisStorage<Partial<JobCampaignState>>(
     'job-campaign-storage',
@@ -260,7 +266,13 @@ export function JobCampaignProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isRedisLoading && redisState && Object.keys(redisState).length > 0) {
       if (redisState.campaignId || redisState.jobDetails || redisState.scoringParameters) {
-        dispatch({ type: 'LOAD_FROM_STORAGE', payload: redisState });
+        // Validate campaign ID before loading from storage
+        let validatedState = { ...redisState };
+        if (redisState.campaignId && !isValidCampaignId(redisState.campaignId)) {
+          console.warn('Invalid campaign ID in Redis storage, clearing:', redisState.campaignId);
+          validatedState.campaignId = null;
+        }
+        dispatch({ type: 'LOAD_FROM_STORAGE', payload: validatedState });
       }
     }
   }, [redisState, isRedisLoading]);
@@ -290,6 +302,11 @@ export function JobCampaignProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setCampaignId = useCallback((id: string) => {
+    // Validate campaign ID format if not empty
+    if (id && id.trim() !== '' && !isValidCampaignId(id)) {
+      console.warn('Invalid campaign ID format, ignoring:', id);
+      return;
+    }
     dispatch({ type: 'SET_CAMPAIGN_ID', payload: id });
   }, []);
 

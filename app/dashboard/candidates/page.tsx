@@ -300,7 +300,9 @@ export default function CandidatesPage() {
 
       const response = await fetch("/api/candidates/resumes/upload", {
         method: "PUT",
-        body: formData});
+        body: formData,
+        credentials: 'include' // Ensure cookies are sent
+      });
 
       const data = await response.json();
 

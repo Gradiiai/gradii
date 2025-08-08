@@ -84,6 +84,7 @@ const navigation = [
 export default function DashboardSidebar({ session }: DashboardSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isLabsExpanded, setIsLabsExpanded] = useState(false);
   const pathname = usePathname();
 
   const isActive = (href: string) => {
@@ -91,6 +92,15 @@ export default function DashboardSidebar({ session }: DashboardSidebarProps) {
       return pathname === href;
     }
     return pathname.startsWith(href);
+  };
+
+  // Check if any Labs child is active
+  const isLabsActive = () => {
+    const labsItem = navigation.find(item => item.name === 'Labs');
+    if (labsItem && Array.isArray((labsItem as any).children)) {
+      return (labsItem as any).children.some((child: any) => isActive(child.href));
+    }
+    return false;
   };
 
   const sidebarVariants = {
@@ -191,15 +201,24 @@ export default function DashboardSidebar({ session }: DashboardSidebarProps) {
 
               // Render Labs with dropdown children
               if (item.name === 'Labs' && Array.isArray((item as any).children)) {
+                const labsActive = isLabsActive();
                 return (
                   <div key={item.name} className="space-y-1">
                     <div
+                      onClick={() => setIsLabsExpanded(!isLabsExpanded)}
                       className={cn(
-                        "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative cursor-default",
-                        "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative cursor-pointer",
+                        labsActive
+                          ? "bg-purple-50 text-purple-700 border border-purple-200"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                       )}
                     >
-                      <Icon className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+                      <Icon className={cn(
+                        "h-5 w-5",
+                        labsActive
+                          ? "text-purple-600"
+                          : "text-gray-400 group-hover:text-gray-600"
+                      )} />
                       <AnimatePresence mode="wait">
                         {!isCollapsed && (
                           <motion.div
@@ -210,32 +229,48 @@ export default function DashboardSidebar({ session }: DashboardSidebarProps) {
                             className="ml-3 flex-1 min-w-0 flex items-center justify-between"
                           >
                             <span className="truncate">{item.name}</span>
-                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                            <motion.div
+                              animate={{ rotate: isLabsExpanded ? 180 : 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <ChevronDown className={cn(
+                                "h-4 w-4",
+                                labsActive ? "text-purple-600" : "text-gray-400"
+                              )} />
+                            </motion.div>
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </div>
-                    {!isCollapsed && (
-                      <div className="ml-9 space-y-1">
-                        {(item as any).children.map((child: any) => {
-                          const ChildIcon = child.icon;
-                          const childActive = isActive(child.href);
-                          return (
-                            <Link
-                              key={child.name}
-                              href={child.href}
-                              className={cn(
-                                "flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200",
-                                childActive ? "bg-purple-50 text-purple-700 border border-purple-200" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                              )}
-                            >
-                              <ChildIcon className={cn("h-4 w-4", childActive ? "text-purple-600" : "text-gray-400 group-hover:text-gray-600")} />
-                              <span className="ml-3">{child.name}</span>
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <AnimatePresence>
+                      {!isCollapsed && isLabsExpanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="ml-9 space-y-1 overflow-hidden"
+                        >
+                          {(item as any).children.map((child: any) => {
+                            const ChildIcon = child.icon;
+                            const childActive = isActive(child.href);
+                            return (
+                              <Link
+                                key={child.name}
+                                href={child.href}
+                                className={cn(
+                                  "flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200",
+                                  childActive ? "text-black font-medium" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                                )}
+                              >
+                                <ChildIcon className={cn("h-4 w-4", childActive ? "text-black" : "text-gray-400 group-hover:text-gray-600")} />
+                                <span className="ml-3">{child.name}</span>
+                              </Link>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               }
@@ -336,6 +371,16 @@ function MobileSidebarContent({
   onClose: () => void;
   session: any;
 }) {
+  const [isMobileLabsExpanded, setIsMobileLabsExpanded] = useState(false);
+
+  // Check if any Labs child is active
+  const isLabsActive = () => {
+    const labsItem = navigation.find(item => item.name === 'Labs');
+    if (labsItem && Array.isArray((labsItem as any).children)) {
+      return (labsItem as any).children.some((child: any) => isActive(child.href));
+    }
+    return false;
+  };
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -362,37 +407,70 @@ function MobileSidebarContent({
 
           // Handle Labs with children in mobile
           if (item.name === 'Labs' && Array.isArray((item as any).children)) {
+            const labsActive = isLabsActive();
             return (
               <div key={item.name} className="space-y-1">
-                <div className="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-600">
-                  <Icon className="h-5 w-5 shrink-0 text-gray-400" />
-                  <div className="ml-3 flex-1">
-                    <span>{item.name}</span>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {item.description}
-                    </p>
+                <div 
+                  onClick={() => setIsMobileLabsExpanded(!isMobileLabsExpanded)}
+                  className={cn(
+                    "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg cursor-pointer transition-all duration-200",
+                    labsActive
+                      ? "bg-purple-50 text-purple-700 border border-purple-200"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  )}
+                >
+                  <Icon className={cn(
+                    "h-5 w-5 shrink-0",
+                    labsActive ? "text-purple-600" : "text-gray-400"
+                  )} />
+                  <div className="ml-3 flex-1 flex items-center justify-between">
+                    <div>
+                      <span>{item.name}</span>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {item.description}
+                      </p>
+                    </div>
+                    <motion.div
+                      animate={{ rotate: isMobileLabsExpanded ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDown className={cn(
+                        "h-4 w-4",
+                        labsActive ? "text-purple-600" : "text-gray-400"
+                      )} />
+                    </motion.div>
                   </div>
                 </div>
-                <div className="ml-9 space-y-1">
-                  {(item as any).children.map((child: any) => {
-                    const ChildIcon = child.icon;
-                    const childActive = isActive(child.href);
-                    return (
-                      <Link
-                        key={child.name}
-                        href={child.href}
-                        onClick={onClose}
-                        className={cn(
-                          "flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200",
-                          childActive ? "bg-purple-50 text-purple-700 border border-purple-200" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                        )}
-                      >
-                        <ChildIcon className={cn("h-4 w-4", childActive ? "text-purple-600" : "text-gray-400")} />
-                        <span className="ml-3">{child.name}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
+                <AnimatePresence>
+                  {isMobileLabsExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="ml-9 space-y-1 overflow-hidden"
+                    >
+                      {(item as any).children.map((child: any) => {
+                        const ChildIcon = child.icon;
+                        const childActive = isActive(child.href);
+                        return (
+                          <Link
+                            key={child.name}
+                            href={child.href}
+                            onClick={onClose}
+                            className={cn(
+                              "flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200",
+                              childActive ? "text-black font-medium" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                            )}
+                          >
+                            <ChildIcon className={cn("h-4 w-4", childActive ? "text-black" : "text-gray-400")} />
+                            <span className="ml-3">{child.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           }
@@ -413,7 +491,7 @@ function MobileSidebarContent({
                 className={cn(
                   "h-5 w-5 shrink-0",
                   active
-                    ? "text-green-600"
+                    ? "text-purple-600"
                     : "text-gray-400 group-hover:text-gray-600"
                 )}
               />
@@ -431,7 +509,7 @@ function MobileSidebarContent({
       {/* User info */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex items-center space-x-3 p-3 rounded-lg bg-gray-50">
-          <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+          <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
             <span className="text-white font-medium text-sm">
               {session?.user?.name?.charAt(0) || "U"}
             </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,7 +84,6 @@ const navigation = [
 export default function DashboardSidebar({ session }: DashboardSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isLabsExpanded, setIsLabsExpanded] = useState(false);
   const pathname = usePathname();
 
   const isActive = (href: string) => {
@@ -102,6 +101,14 @@ export default function DashboardSidebar({ session }: DashboardSidebarProps) {
     }
     return false;
   };
+
+  // Keep Labs expanded if any child is active
+  const [isLabsExpanded, setIsLabsExpanded] = useState(isLabsActive());
+
+  // Update Labs expanded state when pathname changes
+  useEffect(() => {
+    setIsLabsExpanded(isLabsActive());
+  }, [pathname]);
 
   const sidebarVariants = {
     expanded: { width: 256 },
@@ -371,8 +378,6 @@ function MobileSidebarContent({
   onClose: () => void;
   session: any;
 }) {
-  const [isMobileLabsExpanded, setIsMobileLabsExpanded] = useState(false);
-
   // Check if any Labs child is active
   const isLabsActive = () => {
     const labsItem = navigation.find(item => item.name === 'Labs');
@@ -381,6 +386,13 @@ function MobileSidebarContent({
     }
     return false;
   };
+
+  const [isMobileLabsExpanded, setIsMobileLabsExpanded] = useState(isLabsActive());
+
+  // Update Labs expanded state when pathname changes
+  useEffect(() => {
+    setIsMobileLabsExpanded(isLabsActive());
+  }, [pathname]);
   return (
     <div className="flex h-full flex-col">
       {/* Header */}

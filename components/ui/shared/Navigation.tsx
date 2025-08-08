@@ -65,6 +65,7 @@ export const Navigation = () => {
 
   // Candidate dropdown items
   const candidateItems: NavigationItem[] = [
+    { name: 'Talent Pool', href: '/dashboard/candidates', icon: <Users className="h-4 w-4" /> },
     { name: 'Candidate Login', href: '/candidate/signin', icon: <UserCheck className="h-4 w-4" /> },
     { name: 'Candidate Signup', href: '/candidate/signup', icon: <Users className="h-4 w-4" /> },
   ];
@@ -121,6 +122,36 @@ export const Navigation = () => {
                   </div>
                 </Link>
               ))}
+
+              {/* Labs Dropdown */}
+              <MenuItem setActive={setActive} active={active} item="Labs">
+                <div className="flex flex-col space-y-1 text-sm min-w-[220px]">
+                  <HoveredLink href="/dashboard/posts" setActive={setActive} item="Labs">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="h-4 w-4 text-orange-600" />
+                      <span className="font-medium">Posts</span>
+                    </div>
+                  </HoveredLink>
+                  <HoveredLink href="/dashboard/question-bank" setActive={setActive} item="Labs">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="h-4 w-4 text-orange-600" />
+                      <span className="font-medium">Question Bank</span>
+                    </div>
+                  </HoveredLink>
+                  <HoveredLink href="/dashboard/templates" setActive={setActive} item="Labs">
+                    <div className="flex items-center space-x-3">
+                      <FileText className="h-4 w-4 text-orange-600" />
+                      <span className="font-medium">Templates</span>
+                    </div>
+                  </HoveredLink>
+                  <HoveredLink href="/dashboard/linkedin" setActive={setActive} item="Labs">
+                    <div className="flex items-center space-x-3">
+                      <Building className="h-4 w-4 text-orange-600" />
+                      <span className="font-medium">LinkedIn</span>
+                    </div>
+                  </HoveredLink>
+                </div>
+              </MenuItem>
 
               {/* Resources Dropdown */}
               <MenuItem setActive={setActive} active={active} item="Resources">

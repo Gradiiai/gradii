@@ -20,11 +20,13 @@ const Navbar1 = () => {
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: Home },
     { name: "Job Campaigns", href: "/dashboard/job-campaign", icon: Briefcase },
-    { name: "Candidates", href: "/dashboard/candidates", icon: Users },
+    { name: "Talent Pool", href: "/dashboard/candidates", icon: Users },
     { name: "Interview Management", href: "/dashboard/interviews", icon: Users },
-    { name: "Question Bank", href: "/dashboard/question-bank", icon: FileText },
+    { name: "Labs: Posts", href: "/dashboard/posts", icon: FileText },
+    { name: "Labs: Question Bank", href: "/dashboard/question-bank", icon: FileText },
+    { name: "Labs: Templates", href: "/dashboard/templates", icon: FileText },
+    { name: "Labs: LinkedIn", href: "/dashboard/linkedin", icon: FileText },
     { name: "Unified Analytics", href: "/dashboard/unified-analytics", icon: BarChart3 },
-    { name: "Templates", href: "/dashboard/templates", icon: FileText },
   ];
 
   const isActive = (href: string): boolean => pathname === href;

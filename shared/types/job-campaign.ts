@@ -31,6 +31,8 @@ export interface JobDetailsForm {
   targetHireDate?: string; // Optional for permanent campaigns
   isRemote: boolean;
   isHybrid: boolean;
+  courseDegree?: string;
+  specialization?: string;
 }
 
 export interface JobCampaign {

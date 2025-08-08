@@ -235,6 +235,8 @@ export default function JobDetailsStep() {
   const [saveProgress, setSaveProgress] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [availablePosts, setAvailablePosts] = useState<any[]>([]);
+  const [selectedPostId, setSelectedPostId] = useState<string>("");
 
   function formatDateInput(dateString: string | null): string {
     if (!dateString) return "";
@@ -686,6 +688,19 @@ export default function JobDetailsStep() {
     fetchJobDescriptionTemplates();
     fetchSkillTemplates();
     fetchCompanyInfo();
+    // Load posts for current company
+    (async () => {
+      try {
+        if (!session?.user?.companyId) return;
+        const res = await fetch(`/api/content/posts?companyId=${session.user.companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) setAvailablePosts(data.data || []);
+        }
+      } catch (e) {
+        // ignore silently
+      }
+    })();
   }, [session?.user?.companyId]);
 
   const generateWithAI = async () => {
@@ -1000,19 +1015,63 @@ export default function JobDetailsStep() {
                     <Label htmlFor="jobTitle" className="text-sm font-medium">
                       Job Title *
                     </Label>
-                    <Input
-                      id="jobTitle"
-                      placeholder="e.g., Senior Software Engineer"
-                      value={state.jobDetails.jobTitle || ""}
-                      onChange={(e) =>
-                        handleInputChange("jobTitle", e.target.value)
-                      }
-                      className={`h-11 ${
-                        validationErrors.jobTitle
-                          ? "border-red-300 focus:ring-red-500"
-                          : ""
-                      }`}
-                    />
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Input
+                          id="jobTitle"
+                          placeholder="e.g., Senior Software Engineer"
+                          value={state.jobDetails.jobTitle || ""}
+                          onChange={(e) =>
+                            handleInputChange("jobTitle", e.target.value)
+                          }
+                          className={`h-11 ${
+                            validationErrors.jobTitle
+                              ? "border-red-300 focus:ring-red-500"
+                              : ""
+                          }`}
+                        />
+                      </div>
+                      <div className="min-w-[240px]">
+                        <Select
+                          value={selectedPostId}
+                          onValueChange={(val) => {
+                            setSelectedPostId(val);
+                            const post = availablePosts.find(p => p.id === val);
+                            if (post) {
+                              updateJobDetails({
+                                jobTitle: post.title || "",
+                                department: post.department || "",
+                                location: post.location || "",
+                                experienceLevel: post.experienceLevel || "",
+                                employeeType: post.employeeType || "",
+                                salaryMin: post.salaryMin || undefined,
+                                salaryMax: post.salaryMax || undefined,
+                                currency: post.currency || state.jobDetails.currency,
+                                isRemote: !!post.isRemote,
+                                isHybrid: !!post.isHybrid,
+                                salaryNegotiable: !!post.salaryNegotiable,
+                                experienceMin: post.experienceMin ?? state.jobDetails.experienceMin,
+                                experienceMax: post.experienceMax ?? state.jobDetails.experienceMax,
+                                courseDegree: post.courseDegree || '',
+                                specialization: post.specialization || '',
+                              });
+                              setHasUnsavedChanges(true);
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Select from Posts" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availablePosts.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                     {validationErrors.jobTitle && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
                         <Info className="w-4 h-4 mr-1" />
@@ -1288,18 +1347,16 @@ export default function JobDetailsStep() {
                     </Label>
                     <Input
                       type="text"
-                      min="1"
-                      value={""}
+                      value={state.jobDetails.courseDegree || ""}
+                      onChange={(e) => handleInputChange("courseDegree", e.target.value)}
                       className={`h-11 ${
-                        validationErrors.course
-                          ? "border-red-300 focus:ring-red-500"
-                          : ""
+                        validationErrors.courseDegree ? "border-red-300 focus:ring-red-500" : ""
                       }`}
                     />
-                    {validationErrors.course && (
+                    {validationErrors.courseDegree && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
                         <Info className="w-4 h-4 mr-1" />
-                        {validationErrors.numberOfOpenings}
+                        {validationErrors.courseDegree}
                       </p>
                     )}
                   </div>
@@ -1310,12 +1367,10 @@ export default function JobDetailsStep() {
                     </Label>
                     <Input
                       type="text"
-                      min="1"
-                      value={""}
+                      value={state.jobDetails.specialization || ""}
+                      onChange={(e) => handleInputChange("specialization", e.target.value)}
                       className={`h-11 ${
-                        validationErrors.specialization
-                          ? "border-red-300 focus:ring-red-500"
-                          : ""
+                        validationErrors.specialization ? "border-red-300 focus:ring-red-500" : ""
                       }`}
                     />
                     {validationErrors.specialization && (

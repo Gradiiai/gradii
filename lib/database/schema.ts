@@ -222,6 +222,37 @@ export const jobCampaigns = pgTable("job_campaigns", {
 
 });
 
+// Job Posts (Labs > Posts)
+export const posts = pgTable("posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  // Ownership
+  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+
+  // Core fields
+  title: varchar("title", { length: 255 }).notNull(),
+  department: varchar("department", { length: 255 }).notNull(),
+  location: varchar("location", { length: 255 }).notNull(),
+  experienceLevel: varchar("experience_level", { length: 100 }),
+  experienceMin: integer("experience_min"),
+  experienceMax: integer("experience_max"),
+  employeeType: varchar("employee_type", { length: 100 }).notNull(),
+  salaryMin: integer("salary_min"),
+  salaryMax: integer("salary_max"),
+  currency: varchar("currency", { length: 10 }).default("INR"),
+  // Work arrangements and flags
+  isRemote: boolean("is_remote").default(false).notNull(),
+  isHybrid: boolean("is_hybrid").default(false).notNull(),
+  salaryNegotiable: boolean("salary_negotiable").default(false).notNull(),
+  // Education fields
+  courseDegree: varchar("course_degree", { length: 255 }),
+  specialization: varchar("specialization", { length: 255 }),
+
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // jobPortalSyncs table removed - job portal sync functionality deprecated
 
 export const candidates = pgTable("candidates", {

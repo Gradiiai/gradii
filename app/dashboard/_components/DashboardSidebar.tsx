@@ -19,7 +19,10 @@ import {
   ChevronRight,
   Menu,
   X,
-  Linkedin} from "lucide-react";
+  Linkedin,
+  FlaskConical,
+  ChevronDown
+} from "lucide-react";
 import { Button } from "@/components/ui/shared/button";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +42,7 @@ const navigation = [
     icon: Briefcase,
     description: "Manage job postings"},
   {
-    name: "Candidates",
+    name: "Talent Pool",
     href: "/dashboard/candidates",
     icon: Users,
     description: "View and manage candidates"},
@@ -58,21 +61,19 @@ const navigation = [
     href: "/dashboard/unified-analytics",
     icon: BarChart3,
     description: "Comprehensive analytics dashboard"},
+  // Labs group placeholder (handled specially in render)
   {
-    name: "LinkedIn",
-    href: "/dashboard/linkedin",
-    icon: Linkedin,
-    description: "LinkedIn integration and posting"},
-  {
-    name: "Question Bank",
-    href: "/dashboard/question-bank",
-    icon: FileText,
-    description: "Manage interview questions"},
-  {
-    name: "Templates",
-    href: "/dashboard/templates",
-    icon: Brain,
-    description: "Interview templates"},
+    name: "Labs",
+    href: "#",
+    icon: FlaskConical,
+    description: "Experimental tools and resources",
+    children: [
+      { name: "Posts", href: "/dashboard/posts", icon: FileText },
+      { name: "Question Bank", href: "/dashboard/question-bank", icon: FileText },
+      { name: "Templates", href: "/dashboard/templates", icon: Brain },
+      { name: "LinkedIn", href: "/dashboard/linkedin", icon: Linkedin },
+    ]
+  },
   {
     name: "Settings",
     href: "/dashboard/settings",
@@ -187,6 +188,57 @@ export default function DashboardSidebar({ session }: DashboardSidebarProps) {
             {navigation.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
+
+              // Render Labs with dropdown children
+              if (item.name === 'Labs' && Array.isArray((item as any).children)) {
+                return (
+                  <div key={item.name} className="space-y-1">
+                    <div
+                      className={cn(
+                        "flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group relative cursor-default",
+                        "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                      )}
+                    >
+                      <Icon className="h-5 w-5 text-gray-400 group-hover:text-gray-600" />
+                      <AnimatePresence mode="wait">
+                        {!isCollapsed && (
+                          <motion.div
+                            variants={contentVariants}
+                            initial="collapsed"
+                            animate="expanded"
+                            exit="collapsed"
+                            className="ml-3 flex-1 min-w-0 flex items-center justify-between"
+                          >
+                            <span className="truncate">{item.name}</span>
+                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {!isCollapsed && (
+                      <div className="ml-9 space-y-1">
+                        {(item as any).children.map((child: any) => {
+                          const ChildIcon = child.icon;
+                          const childActive = isActive(child.href);
+                          return (
+                            <Link
+                              key={child.name}
+                              href={child.href}
+                              className={cn(
+                                "flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200",
+                                childActive ? "bg-purple-50 text-purple-700 border border-purple-200" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                              )}
+                            >
+                              <ChildIcon className={cn("h-4 w-4", childActive ? "text-purple-600" : "text-gray-400 group-hover:text-gray-600")} />
+                              <span className="ml-3">{child.name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
 
               return (
                 <Link
@@ -307,6 +359,43 @@ function MobileSidebarContent({
         {navigation.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
+
+          // Handle Labs with children in mobile
+          if (item.name === 'Labs' && Array.isArray((item as any).children)) {
+            return (
+              <div key={item.name} className="space-y-1">
+                <div className="flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-gray-600">
+                  <Icon className="h-5 w-5 shrink-0 text-gray-400" />
+                  <div className="ml-3 flex-1">
+                    <span>{item.name}</span>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {item.description}
+                    </p>
+                  </div>
+                </div>
+                <div className="ml-9 space-y-1">
+                  {(item as any).children.map((child: any) => {
+                    const ChildIcon = child.icon;
+                    const childActive = isActive(child.href);
+                    return (
+                      <Link
+                        key={child.name}
+                        href={child.href}
+                        onClick={onClose}
+                        className={cn(
+                          "flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200",
+                          childActive ? "bg-purple-50 text-purple-700 border border-purple-200" : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        )}
+                      >
+                        <ChildIcon className={cn("h-4 w-4", childActive ? "text-purple-600" : "text-gray-400")} />
+                        <span className="ml-3">{child.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          }
 
           return (
             <Link

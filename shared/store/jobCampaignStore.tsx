@@ -46,7 +46,9 @@ const initialJobDetails: JobDetailsForm = {
   applicationDeadline: '',
   targetHireDate: '',
   isRemote: false,
-  isHybrid: false,
+    isHybrid: false,
+    courseDegree: '',
+    specialization: '',
 };
 
 const initialScoringParameters: ScoringParameters = {

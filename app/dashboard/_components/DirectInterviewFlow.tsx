@@ -698,11 +698,14 @@ const DirectInterviewFlow: React.FC<DirectInterviewFlowProps> = ({
                 <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">
-                    Upload candidate's resume (PDF only, max 5MB)
+                    Upload candidate's resume (PDF, DOCX, DOC, TXT, RTF - max 10MB)
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    PDFs are processed directly by AI for optimal accuracy. Other formats are converted to text first.
                   </p>
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.docx,.doc,.txt,.rtf"
                     onChange={handleFileChange}
                     className="hidden"
                     id="resume-upload"
@@ -711,7 +714,7 @@ const DirectInterviewFlow: React.FC<DirectInterviewFlowProps> = ({
                     htmlFor="resume-upload"
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 cursor-pointer transition-colors"
                   >
-                    Choose PDF File
+                    Choose Resume File
                   </label>
                 </div>
               </div>

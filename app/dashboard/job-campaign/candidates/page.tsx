@@ -567,7 +567,9 @@ export default function JobCampaignCandidatesPage() {
       formData.append('campaignId', campaignId);
       formData.append('source', 'manual_upload');
 
-              const response = await fetch('/api/candidates/resumes/upload', {
+      console.log(`Uploading ${files.length} files to campaign: ${campaignId}`);
+
+      const response = await fetch('/api/candidates/resumes/upload', {
         method: 'PUT',
         body: formData,
       });
@@ -575,7 +577,9 @@ export default function JobCampaignCandidatesPage() {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        toast.success(`Successfully uploaded ${data.processed} resumes`);
+        const uploadedCount = data.data?.summary?.successful || 0;
+        const campaignName = jobDetails?.campaignName || 'the selected campaign';
+        toast.success(`Successfully uploaded ${uploadedCount} resumes to ${campaignName}`);
         fetchCandidates();
         setShowUpload(false);
       } else {

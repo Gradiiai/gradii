@@ -177,12 +177,16 @@ export default function CandidatesPage() {
 
     try {
       const response = await fetch(
-        `/api/campaigns/jobs?companyId=${session.user.companyId}`
+        `/api/campaigns/jobs?companyId=${session.user.companyId}&excludeDirectInterview=true`
       );
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setCampaigns(data.data || []);
+          // Filter out any Direct Interview campaigns on the client side as well
+          const filteredCampaigns = (data.data || []).filter(
+            (campaign: JobCampaign) => campaign.campaignName !== 'Direct Interview'
+          );
+          setCampaigns(filteredCampaigns);
         }
       } else {
         console.error("Failed to fetch campaigns:", response.statusText);
@@ -199,12 +203,15 @@ export default function CandidatesPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/candidates?companyId=${session.user.companyId}`
-      );
+      const response = await fetch(`/api/candidates/campaign-based`);
       if (response.ok) {
         const data = await response.json();
-        setCandidates(Array.isArray(data) ? data : []);
+        if (data.success) {
+          setCandidates(data.candidates || []);
+        } else {
+          console.error("Failed to fetch candidates:", data.error);
+          toast.error("Failed to fetch candidates");
+        }
       } else {
         console.error("Failed to fetch candidates:", response.statusText);
         toast.error("Failed to fetch candidates");
@@ -263,10 +270,22 @@ export default function CandidatesPage() {
   const handleResumeUpload = async (files: FileList) => {
     if (!files || files.length === 0) return;
 
-    let defaultCampaignId = "";
+    // Ensure we have a campaign to upload to
+    let targetCampaignId = "";
     if (campaigns.length > 0) {
-      defaultCampaignId =
-        campaignFilter !== "all" ? campaignFilter : campaigns[0]?.id;
+      // If a campaign filter is selected, use that campaign
+      if (campaignFilter !== "all") {
+        targetCampaignId = campaignFilter;
+      } else {
+        // If no specific campaign is selected, use the first active campaign
+        const activeCampaign = campaigns.find(c => c.status === 'active') || campaigns[0];
+        targetCampaignId = activeCampaign?.id || "";
+      }
+    }
+
+    if (!targetCampaignId) {
+      toast.error("Please select a campaign before uploading resumes.");
+      return;
     }
 
     setUploadingResume(true);
@@ -276,7 +295,7 @@ export default function CandidatesPage() {
       Array.from(files).forEach((file) => {
         formData.append("resumes", file);
       });
-      formData.append("campaignId", defaultCampaignId || "");
+      formData.append("campaignId", targetCampaignId);
       formData.append("source", "manual_upload");
 
       const response = await fetch("/api/candidates/resumes/upload", {
@@ -293,7 +312,8 @@ export default function CandidatesPage() {
       setProgress(completeProgress);
 
       if (response.ok && data.success) {
-        toast.success(`Successfully uploaded ${data.processed} resumes`);
+        const uploadedCount = data.data?.summary?.successful || 0;
+        toast.success(`Successfully uploaded ${uploadedCount} resumes to ${campaigns.find(c => c.id === targetCampaignId)?.campaignName}`);
         
         // Give a small delay to show 100% completion before closing
         setTimeout(() => {

@@ -193,6 +193,7 @@ export async function GET(request: NextRequest) {
     const companyId = searchParams.get('companyId');
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
+    const excludeDirectInterview = searchParams.get('excludeDirectInterview') === 'true';
 
     if (!companyId) {
       return NextResponse.json(
@@ -204,7 +205,8 @@ export async function GET(request: NextRequest) {
     const result = await getJobCampaigns({
       companyId,
       limit,
-      offset
+      offset,
+      excludeDirectInterview
     });
 
     if (!result.success) {

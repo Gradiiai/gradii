@@ -315,28 +315,85 @@ export default function JobDetailsStep() {
     if (selectedPost) {
       setSelectedPostId(postId);
       
-      // Map job post data to job details form
+      // Map ALL job post data to job details form with proper fallbacks
       updateJobDetails({
-        jobTitle: selectedPost.title,
-        department: selectedPost.department,
-        location: selectedPost.location,
+        // Keep existing campaign name if set, otherwise generate from job title
+        campaignName: state.jobDetails.campaignName || `${selectedPost.title} Campaign`,
+        jobTitle: selectedPost.title || "",
+        department: selectedPost.department || "",
+        location: selectedPost.location || "",
         experienceLevel: selectedPost.experienceLevel || "",
-        employeeType: selectedPost.employeeType,
+        employeeType: selectedPost.employeeType || "",
         salaryMin: selectedPost.salaryMin || 0,
         salaryMax: selectedPost.salaryMax || 0,
-        currency: selectedPost.currency,
-        isRemote: selectedPost.isRemote,
-        isHybrid: selectedPost.isHybrid,
-        salaryNegotiable: selectedPost.salaryNegotiable,
+        currency: selectedPost.currency || "INR",
+        
+        // Set defaults for campaign-specific fields
+        numberOfOpenings: state.jobDetails.numberOfOpenings || 1,
+        campaignType: state.jobDetails.campaignType || "specific",
+        
+        // Work arrangement flags
+        isRemote: selectedPost.isRemote || false,
+        isHybrid: selectedPost.isHybrid || false,
+        salaryNegotiable: selectedPost.salaryNegotiable || false,
+        
+        // Experience ranges
         minExperience: selectedPost.experienceMin || 0,
         maxExperience: selectedPost.experienceMax || 0,
+        
+        // Education fields
         courseDegree: selectedPost.courseDegree || "",
         specialization: selectedPost.specialization || "",
+        
+        // Generate basic job description from post info if not exists
+        jobDescription: state.jobDetails.jobDescription || `Join our ${selectedPost.department} team as a ${selectedPost.title} in ${selectedPost.location}. We are looking for talented individuals to contribute to our growing organization.`,
+        
+        // Keep existing values for other fields or set empty defaults
+        jobDuties: state.jobDetails.jobDuties || "",
+        requirements: state.jobDetails.requirements || [],
+        benefits: state.jobDetails.benefits || [],
+        skills: state.jobDetails.skills || [],
+        applicationDeadline: state.jobDetails.applicationDeadline || "",
+        targetHireDate: state.jobDetails.targetHireDate || "",
       });
       
       setHasUnsavedChanges(true);
-      toast.success("Job post details loaded successfully!");
+      toast.success("Job post details loaded successfully! You can now modify any fields as needed.");
     }
+  };
+
+  // Clear form function
+  const clearForm = () => {
+    updateJobDetails({
+      campaignName: "",
+      jobTitle: "",
+      department: "",
+      location: "",
+      experienceLevel: "",
+      employeeType: "",
+      salaryMin: 0,
+      salaryMax: 0,
+      currency: "INR",
+      numberOfOpenings: 1,
+      jobDescription: "",
+      jobDuties: "",
+      requirements: [],
+      benefits: [],
+      skills: [],
+      minExperience: 0,
+      maxExperience: 0,
+      campaignType: "specific",
+      applicationDeadline: "",
+      targetHireDate: "",
+      isRemote: false,
+      isHybrid: false,
+      courseDegree: "",
+      specialization: "",
+      salaryNegotiable: false,
+    });
+    setSelectedPostId("");
+    setHasUnsavedChanges(false);
+    toast.success("Form cleared successfully!");
   };
 
   // Handle creation mode change
@@ -345,10 +402,70 @@ export default function JobDetailsStep() {
     
     if (mode === 'from-post') {
       fetchJobPosts();
+      // Clear form when switching to job post mode
+      if (!isEditMode) {
+        updateJobDetails({
+          campaignName: "",
+          jobTitle: "",
+          department: "",
+          location: "",
+          experienceLevel: "",
+          employeeType: "",
+          salaryMin: 0,
+          salaryMax: 0,
+          currency: "INR",
+          numberOfOpenings: 1,
+          jobDescription: "",
+          jobDuties: "",
+          requirements: [],
+          benefits: [],
+          skills: [],
+          minExperience: 0,
+          maxExperience: 0,
+          campaignType: "specific",
+          applicationDeadline: "",
+          targetHireDate: "",
+          isRemote: false,
+          isHybrid: false,
+          courseDegree: "",
+          specialization: "",
+          salaryNegotiable: false,
+        });
+      }
     } else {
-      // Clear selected post when switching to custom mode
+      // Clear selected post and form when switching to custom mode
       setSelectedPostId("");
+      if (!isEditMode) {
+        updateJobDetails({
+          campaignName: "",
+          jobTitle: "",
+          department: "",
+          location: "",
+          experienceLevel: "",
+          employeeType: "",
+          salaryMin: 0,
+          salaryMax: 0,
+          currency: "INR",
+          numberOfOpenings: 1,
+          jobDescription: "",
+          jobDuties: "",
+          requirements: [],
+          benefits: [],
+          skills: [],
+          minExperience: 0,
+          maxExperience: 0,
+          campaignType: "specific",
+          applicationDeadline: "",
+          targetHireDate: "",
+          isRemote: false,
+          isHybrid: false,
+          courseDegree: "",
+          specialization: "",
+          salaryNegotiable: false,
+        });
+      }
     }
+    setHasUnsavedChanges(false);
   };
 
   // Validate form data (for saving)
@@ -1091,9 +1208,22 @@ export default function JobDetailsStep() {
               )}
 
               {/* Creation Mode Selection */}
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h4 className="font-medium text-gray-900 mb-4">How would you like to create this job campaign?</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {!isEditMode && (
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="font-medium text-gray-900">How would you like to create this job campaign?</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={clearForm}
+                      className="text-gray-600 hover:text-gray-800"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Clear Form
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <motion.div
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -1144,7 +1274,8 @@ export default function JobDetailsStep() {
                     </div>
                   </motion.div>
                 </div>
-              </div>
+                </div>
+              )}
 
               {/* Basic Information */}
               <div className="flex-col space-y-4">
@@ -1180,75 +1311,79 @@ export default function JobDetailsStep() {
                     <Label htmlFor="jobTitle" className="text-sm font-medium">
                       Job Title *
                     </Label>
-                    {creationMode === 'custom' ? (
-                      <Input
-                        id="jobTitle"
-                        placeholder="e.g., Senior Software Engineer"
-                        value={state.jobDetails.jobTitle || ""}
-                        onChange={(e) =>
-                          handleInputChange("jobTitle", e.target.value)
-                        }
-                        className={`h-11 ${
-                          validationErrors.jobTitle
-                            ? "border-red-300 focus:ring-red-500"
-                            : ""
-                        }`}
-                      />
-                    ) : (
-                      <Select
-                        value={selectedPostId}
-                        onValueChange={(val) => {
-                          setSelectedPostId(val);
-                          const post = availablePosts.find(p => p.id === val);
-                          if (post) {
-                            updateJobDetails({
-                              jobTitle: post.title || "",
-                              department: post.department || "",
-                              location: post.location || "",
-                              experienceLevel: post.experienceLevel || "",
-                              employeeType: post.employeeType || "",
-                              salaryMin: post.salaryMin || undefined,
-                              salaryMax: post.salaryMax || undefined,
-                              currency: post.currency || state.jobDetails.currency,
-                              isRemote: !!post.isRemote,
-                              isHybrid: !!post.isHybrid,
-                              salaryNegotiable: !!post.salaryNegotiable,
-                              experienceMin: post.experienceMin ?? state.jobDetails.experienceMin,
-                              experienceMax: post.experienceMax ?? state.jobDetails.experienceMax,
-                              courseDegree: post.courseDegree || '',
-                              specialization: post.specialization || '',
-                            });
-                            setHasUnsavedChanges(true);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className={`h-11 ${
-                          validationErrors.jobTitle
-                            ? "border-red-300 focus:ring-red-500"
-                            : ""
-                        }`}>
-                          <SelectValue placeholder={
-                            loadingJobPosts 
-                              ? "Loading job posts..." 
-                              : availablePosts.length === 0 
-                                ? "No job posts available"
-                                : "Select a job title from posts"
-                          } />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availablePosts.map((post) => (
-                            <SelectItem key={post.id} value={post.id}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{post.title}</span>
-                                <span className="text-xs text-gray-500">
-                                  {post.department} • {post.location}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                                         {creationMode === 'custom' ? (
+                       <Input
+                         id="jobTitle"
+                         placeholder="e.g., Senior Software Engineer"
+                         value={state.jobDetails.jobTitle || ""}
+                         onChange={(e) =>
+                           handleInputChange("jobTitle", e.target.value)
+                         }
+                         className={`h-11 ${
+                           validationErrors.jobTitle
+                             ? "border-red-300 focus:ring-red-500"
+                             : ""
+                         }`}
+                       />
+                     ) : (
+                       <div className="space-y-2">
+                         <Select
+                           value={selectedPostId}
+                           onValueChange={handleJobPostSelection}
+                           disabled={loadingJobPosts}
+                         >
+                           <SelectTrigger className={`h-11 ${
+                             validationErrors.jobTitle
+                               ? "border-red-300 focus:ring-red-500"
+                               : ""
+                           }`}>
+                             <SelectValue placeholder={
+                               loadingJobPosts 
+                                 ? "Loading job posts..." 
+                                 : availablePosts.length === 0 
+                                   ? "No job posts available - Create one first"
+                                   : "Select a job title from existing posts"
+                             } />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {availablePosts.map((post) => (
+                               <SelectItem key={post.id} value={post.id}>
+                                 <div className="flex flex-col py-1">
+                                   <span className="font-medium text-gray-900">{post.title}</span>
+                                   <span className="text-xs text-gray-500">
+                                     {post.department} • {post.location} • {post.employeeType}
+                                   </span>
+                                   {(post.salaryMin || post.salaryMax) && (
+                                     <span className="text-xs text-green-600">
+                                       {post.currency} {post.salaryMin?.toLocaleString()} - {post.salaryMax?.toLocaleString()}
+                                     </span>
+                                   )}
+                                 </div>
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                         {availablePosts.length === 0 && !loadingJobPosts && (
+                           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                             <p className="text-sm text-blue-800">
+                               No job posts found. 
+                               <a 
+                                 href="/dashboard/posts" 
+                                 className="underline font-medium hover:text-blue-900 ml-1"
+                                 target="_blank"
+                               >
+                                 Create job posts first
+                               </a> or switch to custom mode.
+                             </p>
+                           </div>
+                         )}
+                         {selectedPostId && (
+                           <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+                             ✓ Job post selected. All fields have been populated. You can modify any field as needed.
+                           </div>
+                         )}
+                       </div>
+                     )}
                     {validationErrors.jobTitle && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
                         <Info className="w-4 h-4 mr-1" />

@@ -571,11 +571,14 @@ const AddNewInterview = ({ existingInterview, isEditing = false, isModal = false
                 <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <div className="space-y-2">
                   <p className="text-sm text-gray-600">
-                    Upload candidate's resume (PDF only, max 5MB)
+                    Upload candidate's resume (PDF, DOCX, DOC, TXT, RTF - max 10MB)
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    PDFs are processed directly by AI for optimal accuracy. Other formats are converted to text first.
                   </p>
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,.docx,.doc,.txt,.rtf"
                     onChange={handleFileChange}
                     className="hidden"
                     id="resume-upload"

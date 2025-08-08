@@ -109,13 +109,140 @@ export default function PostsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="ml-2 text-sm sm:text-base text-gray-600">
-            Loading posts...
-          </p>
+      <div className="container mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Header Skeleton */}
+        <div className="mb-6 sm:mb-8">
+          <div className="h-8 bg-gray-200 rounded w-32 animate-pulse mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-56 animate-pulse"></div>
         </div>
+
+        {/* Create New Post Form Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="h-7 bg-gray-200 rounded w-48 animate-pulse"></div>
+          </CardHeader>
+          <CardContent className="space-y-4 sm:space-y-6">
+            {/* Basic Information Section */}
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-36 animate-pulse mb-3"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="space-y-1 sm:space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Employment Details Section */}
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-40 animate-pulse mb-3"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="space-y-1 sm:space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Qualifications Section */}
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-32 animate-pulse mb-3"></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="space-y-1 sm:space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-28 animate-pulse"></div>
+                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Work Arrangement & Compensation Section */}
+            <div>
+              <div className="h-6 bg-gray-200 rounded w-56 animate-pulse mb-3"></div>
+              
+              {/* Switches */}
+              <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-6">
+                <div className="flex flex-wrap gap-3 sm:gap-6">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <div className="h-6 w-10 bg-gray-200 rounded-full animate-pulse"></div>
+                      <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Salary Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="space-y-1 sm:space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
+                      <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="flex justify-end pt-4 border-t">
+              <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Published Posts Section Skeleton */}
+        <Card>
+          <CardHeader>
+            <div className="h-7 bg-gray-200 rounded w-40 animate-pulse mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 sm:space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="border rounded-lg p-4 sm:p-6 bg-white animate-pulse">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
+                        <div className="flex-1">
+                          <div className="h-6 bg-gray-200 rounded w-64 mb-2"></div>
+                          <div className="flex flex-wrap gap-2">
+                            <div className="h-6 bg-gray-200 rounded w-20"></div>
+                            <div className="h-6 bg-gray-200 rounded w-24"></div>
+                            <div className="h-6 bg-gray-200 rounded w-16"></div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+                        {Array.from({ length: 3 }).map((_, j) => (
+                          <div key={j} className="h-4 bg-gray-200 rounded w-32"></div>
+                        ))}
+                      </div>
+
+                      {/* Qualifications */}
+                      <div className="pt-3 border-t border-gray-100">
+                        <div className="h-4 bg-gray-200 rounded w-40 mb-1"></div>
+                        <div className="h-4 bg-gray-200 rounded w-36"></div>
+                      </div>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex sm:flex-col gap-2">
+                      <div className="h-8 bg-gray-200 rounded w-12"></div>
+                      <div className="h-8 bg-gray-200 rounded w-12"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

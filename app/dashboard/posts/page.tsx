@@ -107,138 +107,345 @@ export default function PostsPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p className="ml-2 text-sm sm:text-base text-gray-600">
+            Loading posts...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-medium text-gray-900">Job Posts</h1>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">
+          Create and manage your job postings
+        </p>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Posts</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-medium">Create New Post</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Job Title *</Label>
-              <Input value={form.title || ""} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            </div>
-            <div>
-              <Label>Department *</Label>
-              <Select value={form.department || ""} onValueChange={(v) => setForm({ ...form, department: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((d) => (
-                    <SelectItem key={d} value={d}>{d}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Location *</Label>
-              <Input value={form.location || ""} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Experience Level</Label>
-              <Select value={form.experienceLevel || ""} onValueChange={(v) => setForm({ ...form, experienceLevel: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select level" />
-                </SelectTrigger>
-                <SelectContent>
-                  {experienceLevels.map((lvl) => (
-                    <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Employee Type *</Label>
-              <Select value={form.employeeType || ""} onValueChange={(v) => setForm({ ...form, employeeType: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employeeTypes.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Currency</Label>
-              <Input value={form.currency || "INR"} onChange={(e) => setForm({ ...form, currency: e.target.value })} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Course/ Degree</Label>
-              <Input value={form.courseDegree || ""} onChange={(e) => setForm({ ...form, courseDegree: e.target.value })} />
-            </div>
-            <div>
-              <Label>Specialization</Label>
-              <Input value={form.specialization || ""} onChange={(e) => setForm({ ...form, specialization: e.target.value })} />
-            </div>
-          </div>
-
-          {/* Work Arrangement */}
-          <div className="space-y-2">
-            <Label>Work Arrangement</Label>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center space-x-2">
-                <Switch id="isRemote" checked={!!form.isRemote} onCheckedChange={(checked) => setForm({ ...form, isRemote: checked })} />
-                <Label htmlFor="isRemote">Remote Work</Label>
+        <CardContent className="space-y-4 sm:space-y-6">
+          {/* Basic Information */}
+          <div>
+            <h3 className="text-base font-medium text-gray-900 mb-3">Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Job Title *</Label>
+                <Input 
+                  value={form.title || ""} 
+                  onChange={(e) => setForm({ ...form, title: e.target.value })} 
+                  placeholder="e.g. Senior Software Engineer"
+                  className="w-full"
+                />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch id="isHybrid" checked={!!form.isHybrid} onCheckedChange={(checked) => setForm({ ...form, isHybrid: checked })} />
-                <Label htmlFor="isHybrid">Hybrid Work</Label>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Department *</Label>
+                <Select value={form.department || ""} onValueChange={(v) => setForm({ ...form, department: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((d) => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Location *</Label>
+                <Input 
+                  value={form.location || ""} 
+                  onChange={(e) => setForm({ ...form, location: e.target.value })} 
+                  placeholder="e.g. Mumbai, India"
+                  className="w-full"
+                />
               </div>
             </div>
           </div>
 
-          {/* Salary negotiable */}
-          <div className="flex items-center space-x-2">
-            <Switch id="salaryNegotiable" checked={!!form.salaryNegotiable} onCheckedChange={(checked) => setForm({ ...form, salaryNegotiable: checked })} />
-            <Label htmlFor="salaryNegotiable">Salary is negotiable</Label>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label>Salary Min</Label>
-              <Input type="number" value={form.salaryMin ?? ""} onChange={(e) => setForm({ ...form, salaryMin: e.target.value ? Number(e.target.value) : undefined })} />
+          {/* Employment Details */}
+          <div>
+            <h3 className="text-base font-medium text-gray-900 mb-3">Employment Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Experience Level</Label>
+                <Select value={form.experienceLevel || ""} onValueChange={(v) => setForm({ ...form, experienceLevel: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select experience level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {experienceLevels.map((lvl) => (
+                      <SelectItem key={lvl} value={lvl}>{lvl}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Employment Type *</Label>
+                <Select value={form.employeeType || ""} onValueChange={(v) => setForm({ ...form, employeeType: v })}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select employment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeTypes.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Currency</Label>
+                <Input 
+                  value={form.currency || "INR"} 
+                  onChange={(e) => setForm({ ...form, currency: e.target.value })} 
+                  placeholder="INR"
+                  className="w-full"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Salary Max</Label>
-              <Input type="number" value={form.salaryMax ?? ""} onChange={(e) => setForm({ ...form, salaryMax: e.target.value ? Number(e.target.value) : undefined })} />
+          </div>
+
+          {/* Qualifications */}
+          <div>
+            <h3 className="text-base font-medium text-gray-900 mb-3">Qualifications</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Course/Degree</Label>
+                <Input 
+                  value={form.courseDegree || ""} 
+                  onChange={(e) => setForm({ ...form, courseDegree: e.target.value })} 
+                  placeholder="e.g. B.Tech, MBA"
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Specialization</Label>
+                <Input 
+                  value={form.specialization || ""} 
+                  onChange={(e) => setForm({ ...form, specialization: e.target.value })} 
+                  placeholder="e.g. Computer Science, Marketing"
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
-          <div className="flex justify-end">
-            <Button onClick={createPost} disabled={submitting}>{submitting ? 'Saving...' : 'Create Post'}</Button>
+
+          {/* Work Arrangement & Compensation */}
+          <div>
+            <h3 className="text-base font-medium text-gray-900 mb-3">Work Arrangement & Compensation</h3>
+            
+            {/* Work Arrangement Switches */}
+            <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-6">
+                <div className="flex flex-wrap gap-3 sm:gap-6">
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="isRemote" 
+                      checked={!!form.isRemote} 
+                      onCheckedChange={(checked) => setForm({ ...form, isRemote: checked })} 
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="isRemote" className="text-sm text-gray-600">Remote Work Available</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="isHybrid" 
+                      checked={!!form.isHybrid} 
+                      onCheckedChange={(checked) => setForm({ ...form, isHybrid: checked })} 
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="isHybrid" className="text-sm text-gray-600">Hybrid Work Available</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="salaryNegotiable" 
+                      checked={!!form.salaryNegotiable} 
+                      onCheckedChange={(checked) => setForm({ ...form, salaryNegotiable: checked })} 
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label htmlFor="salaryNegotiable" className="text-sm text-gray-600">
+                      Salary is negotiable
+                    </Label>
+                  </div>
+                </div>
+
+              {/* Salary Section */}
+              <div>
+                {!form.salaryNegotiable && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Minimum Salary</Label>
+                      <Input 
+                        type="number" 
+                        value={form.salaryMin ?? ""} 
+                        onChange={(e) => setForm({ ...form, salaryMin: e.target.value ? Number(e.target.value) : undefined })} 
+                        placeholder="e.g. 500000"
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Maximum Salary</Label>
+                      <Input 
+                        type="number" 
+                        value={form.salaryMax ?? ""} 
+                        onChange={(e) => setForm({ ...form, salaryMax: e.target.value ? Number(e.target.value) : undefined })} 
+                        placeholder="e.g. 800000"
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end pt-4 border-t">
+            <Button 
+              onClick={createPost} 
+              disabled={submitting}
+              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Creating Post...
+                </>
+              ) : (
+                'Create Job Post'
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
 
+      {/* Existing Posts Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Existing Posts</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-medium">Published Posts</CardTitle>
+          <p className="text-sm text-gray-600 mt-1">
+            {posts.length > 0 ? `${posts.length} job post${posts.length === 1 ? '' : 's'} published` : 'No posts published yet'}
+          </p>
         </CardHeader>
         <CardContent>
-          <div className="divide-y">
-            {loading ? (
-              <div className="text-sm text-gray-500">Loading...</div>
-            ) : posts.length === 0 ? (
-              <div className="text-sm text-gray-500">No posts yet</div>
-            ) : (
-              posts.map((p) => (
-                <div key={p.id} className="py-3 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{p.title}</div>
-                    <div className="text-sm text-gray-500">{p.department} • {p.location} • {p.employeeType}</div>
+          {posts.length === 0 ? (
+            <div className="text-center py-8 sm:py-12">
+              <div className="text-gray-400 mb-4">
+                <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-2">
+                No job posts yet
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-600">
+                Create your first job post using the form above to start attracting candidates.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 sm:space-y-4">
+              {posts.map((post) => (
+                <div key={post.id} className="border rounded-lg p-4 sm:p-6 hover:shadow-sm transition-shadow bg-white">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                    <div className="flex-1">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
+                        <div>
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-1">{post.title}</h3>
+                          <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-gray-600">
+                            <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md">{post.department}</span>
+                            <span className="flex items-center gap-1">
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              {post.location}
+                            </span>
+                            <span className="bg-green-50 text-green-700 px-2 py-1 rounded-md">{post.employeeType}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Additional Details */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs sm:text-sm text-gray-600">
+                        {post.experienceLevel && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Experience:</span>
+                            <span>{post.experienceLevel}</span>
+                          </div>
+                        )}
+                        {(post.salaryMin || post.salaryMax) && !post.salaryNegotiable && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Salary:</span>
+                            <span>
+                              {post.salaryMin && post.salaryMax 
+                                ? `${post.currency || 'INR'} ${post.salaryMin.toLocaleString()} - ${post.salaryMax.toLocaleString()}`
+                                : post.salaryMin 
+                                ? `${post.currency || 'INR'} ${post.salaryMin.toLocaleString()}+`
+                                : `Up to ${post.currency || 'INR'} ${post.salaryMax?.toLocaleString()}`
+                              }
+                            </span>
+                          </div>
+                        )}
+                        {post.salaryNegotiable && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Salary:</span>
+                            <span className="text-orange-600">Negotiable</span>
+                          </div>
+                        )}
+                        {(post.isRemote || post.isHybrid) && (
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Work Style:</span>
+                            <div className="flex gap-1">
+                              {post.isRemote && <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded">Remote</span>}
+                              {post.isHybrid && <span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded">Hybrid</span>}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Qualifications */}
+                      {(post.courseDegree || post.specialization) && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <div className="text-xs sm:text-sm text-gray-600">
+                            {post.courseDegree && (
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium">Degree:</span>
+                                <span>{post.courseDegree}</span>
+                              </div>
+                            )}
+                            {post.specialization && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Specialization:</span>
+                                <span>{post.specialization}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Actions */}
+                    <div className="flex sm:flex-col gap-2">
+                      <Button variant="outline" size="sm" className="text-xs">
+                        Edit
+                      </Button>
+                      <Button variant="outline" size="sm" className="text-xs text-red-600 hover:text-red-700 hover:border-red-300">
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -119,6 +119,8 @@ const jobDetailsSchema = z
     }),
     applicationDeadline: z.string().optional(),
     targetHireDate: z.string().optional(),
+    courseDegree: z.string().optional(),
+    specialization: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -338,9 +340,9 @@ export default function JobDetailsStep() {
         isRemote: selectedPost.isRemote || false,
         isHybrid: selectedPost.isHybrid || false,
         
-        // Experience ranges
-        minExperience: selectedPost.experienceMin || 0,
-        maxExperience: selectedPost.experienceMax || 0,
+        // Experience ranges (corrected field mapping)
+        minExperience: selectedPost.experienceMin || undefined,
+        maxExperience: selectedPost.experienceMax || undefined,
         
         // Education fields
         courseDegree: selectedPost.courseDegree || "",
@@ -401,8 +403,8 @@ export default function JobDetailsStep() {
       requirements: [],
       benefits: [],
       skills: [],
-      minExperience: 0,
-      maxExperience: 0,
+      minExperience: undefined,
+      maxExperience: undefined,
       campaignType: "specific",
       applicationDeadline: "",
       targetHireDate: "",
@@ -441,8 +443,8 @@ export default function JobDetailsStep() {
           requirements: [],
           benefits: [],
           skills: [],
-          minExperience: 0,
-          maxExperience: 0,
+          minExperience: undefined,
+          maxExperience: undefined,
           campaignType: "specific",
           applicationDeadline: "",
           targetHireDate: "",
@@ -473,8 +475,8 @@ export default function JobDetailsStep() {
           requirements: [],
           benefits: [],
           skills: [],
-          minExperience: 0,
-          maxExperience: 0,
+          minExperience: undefined,
+          maxExperience: undefined,
           campaignType: "specific",
           applicationDeadline: "",
           targetHireDate: "",
@@ -524,6 +526,8 @@ export default function JobDetailsStep() {
           state.jobDetails.applicationDeadline || ""
         ).trim(),
         targetHireDate: (state.jobDetails.targetHireDate || "").trim(),
+        courseDegree: (state.jobDetails.courseDegree || "").trim(),
+        specialization: (state.jobDetails.specialization || "").trim(),
       };
 
       console.log("Validating form data:", formData);
@@ -581,6 +585,8 @@ export default function JobDetailsStep() {
           state.jobDetails.applicationDeadline || ""
         ).trim(),
         targetHireDate: (state.jobDetails.targetHireDate || "").trim(),
+        courseDegree: (state.jobDetails.courseDegree || "").trim(),
+        specialization: (state.jobDetails.specialization || "").trim(),
       };
 
       jobDetailsSchema.parse(formData);
@@ -637,6 +643,14 @@ export default function JobDetailsStep() {
         applicationDeadline: state.jobDetails.applicationDeadline,
         targetHireDate: state.jobDetails.targetHireDate,
         skills: state.jobDetails.skills,
+        courseDegree: state.jobDetails.courseDegree,
+        specialization: state.jobDetails.specialization,
+        isRemote: state.jobDetails.isRemote,
+        isHybrid: state.jobDetails.isHybrid,
+        salaryNegotiable: state.jobDetails.salaryNegotiable,
+        currency: state.jobDetails.currency,
+        minExperience: state.jobDetails.minExperience,
+        maxExperience: state.jobDetails.maxExperience,
         companyId: session.user.companyId,
       };
 
@@ -924,8 +938,8 @@ export default function JobDetailsStep() {
                 courseDegree: campaign.courseDegree || "",
                 specialization: campaign.specialization || "",
                 salaryNegotiable: campaign.salaryNegotiable || false,
-                experienceMin: campaign.experienceMin || undefined,
-                experienceMax: campaign.experienceMax || undefined,
+                minExperience: campaign.minExperience || undefined,
+                maxExperience: campaign.maxExperience || undefined,
               });
 
               setIsEditMode(true);
@@ -1001,7 +1015,7 @@ export default function JobDetailsStep() {
         body: JSON.stringify({
           jobTitle: state.jobDetails.jobTitle,
           department: state.jobDetails.department,
-          experienceLevel: `${state.jobDetails.experienceMin || 0}-${state.jobDetails.experienceMax || 0} years`,
+          experienceLevel: `${state.jobDetails.minExperience || 0}-${state.jobDetails.maxExperience || 0} years`,
         }),
       });
 

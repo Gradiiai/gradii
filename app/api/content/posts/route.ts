@@ -99,4 +99,111 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT /api/content/posts
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await getServerSessionWithAuth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      id,
+      title,
+      department,
+      location,
+      experienceLevel,
+      experienceMin,
+      experienceMax,
+      employeeType,
+      salaryMin,
+      salaryMax,
+      currency = 'INR',
+      isRemote = false,
+      isHybrid = false,
+      salaryNegotiable = false,
+      courseDegree,
+      specialization,
+    } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Post ID is required' }, { status: 400 });
+    }
+
+    if (!title || !department || !location || !employeeType) {
+      return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
+    }
+
+    const [row] = await db
+      .update(posts)
+      .set({
+        title,
+        department,
+        location,
+        experienceLevel: experienceLevel || null,
+        experienceMin: experienceMin ?? null,
+        experienceMax: experienceMax ?? null,
+        employeeType,
+        salaryMin: salaryMin ?? null,
+        salaryMax: salaryMax ?? null,
+        currency,
+        isRemote,
+        isHybrid,
+        salaryNegotiable,
+        courseDegree: courseDegree || null,
+        specialization: specialization || null,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(posts.id, id),
+        eq(posts.companyId, session.user.companyId!)
+      ))
+      .returning();
+
+    if (!row) {
+      return NextResponse.json({ success: false, error: 'Post not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: row });
+  } catch (error) {
+    console.error('Error updating post:', error);
+    return NextResponse.json({ success: false, error: 'Failed to update post' }, { status: 500 });
+  }
+}
+
+// DELETE /api/content/posts
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSessionWithAuth();
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Post ID is required' }, { status: 400 });
+    }
+
+    const [deletedRow] = await db
+      .delete(posts)
+      .where(and(
+        eq(posts.id, id),
+        eq(posts.companyId, session.user.companyId!)
+      ))
+      .returning();
+
+    if (!deletedRow) {
+      return NextResponse.json({ success: false, error: 'Post not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    return NextResponse.json({ success: false, error: 'Failed to delete post' }, { status: 500 });
+  }
+}
+
 

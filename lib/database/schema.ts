@@ -205,6 +205,8 @@ export const jobCampaigns = pgTable("job_campaigns", {
   competencies: text("competencies"), // JSON array of competencies with weights
   minExperience: integer("min_experience").default(0), // Minimum years of experience
   maxExperience: integer("max_experience"), // Maximum years of experience
+  courseDegree: varchar("course_degree", { length: 255 }), // Required course/degree
+  specialization: varchar("specialization", { length: 255 }), // Required specialization
   jobDescriptionTemplateId: uuid("job_description_template_id").references(() => jobDescriptionTemplates.id),
   skillTemplateId: uuid("skill_template_id").references(() => skillTemplates.id),
   status: varchar("status", { length: 50 }).default("draft"), // draft, active, paused, closed

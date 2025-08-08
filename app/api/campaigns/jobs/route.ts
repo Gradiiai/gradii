@@ -53,7 +53,9 @@ export async function POST(request: NextRequest) {
       maxExperience,
       competencies,
       jobDescriptionTemplateId,
-      skillTemplateId} = body;
+      skillTemplateId,
+      courseDegree,
+      specialization} = body;
 
     // Use employmentType if employeeType is not provided (for backward compatibility)
     const finalEmployeeType = employeeType || employmentType;
@@ -153,6 +155,8 @@ export async function POST(request: NextRequest) {
       isHybrid: Boolean(isHybrid),
       jobDescriptionTemplateId: jobDescriptionTemplateId || undefined,
       skillTemplateId: skillTemplateId || undefined,
+      courseDegree: courseDegree?.trim() || undefined,
+      specialization: specialization?.trim() || undefined,
       
       createdBy: session.user.id,
       companyId

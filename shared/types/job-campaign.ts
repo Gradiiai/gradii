@@ -4,25 +4,23 @@ export interface JobDetailsForm {
   department: string;
   location: string;
   experienceLevel: string;
-  experienceMin: number;
-  experienceMax: number;
+  minExperience?: number; // Minimum years of experience (aligned with posts.experienceMin)
+  maxExperience?: number; // Maximum years of experience (aligned with posts.experienceMax)
   employeeType: string;
-  salaryMin: number;
-  salaryMax: number;
+  salaryMin?: number; // Made optional to match database schema
+  salaryMax?: number; // Made optional to match database schema
   salaryNegotiable: boolean;
   currency: string;
   numberOfOpenings: number;
   jobDescription: string;
-  jobDuties: string;
-  jobRequirements: string;
-  jobBenefits: string;
-  requirements: string[];
-  benefits: string[];
-  skills: string[];
+  jobDuties?: string; // Made optional to match database schema
+  jobRequirements?: string; // Renamed from jobRequirements to match database field
+  jobBenefits?: string; // Renamed from jobBenefits to match database field
+  requirements?: string[]; // Keep for UI compatibility
+  benefits?: string[]; // Keep for UI compatibility
+  skills?: string[]; // Keep for UI compatibility
   requiredSkills?: string; // JSON string of required skills with weights
   competencies?: string; // JSON string of competencies with weights
-  minExperience?: number; // Minimum years of experience
-  maxExperience?: number; // Maximum years of experience
   jobDescriptionTemplateId?: string;
   skillTemplateId?: string;
 
@@ -31,8 +29,8 @@ export interface JobDetailsForm {
   targetHireDate?: string; // Optional for permanent campaigns
   isRemote: boolean;
   isHybrid: boolean;
-  courseDegree?: string;
-  specialization?: string;
+  courseDegree?: string; // Education field from posts
+  specialization?: string; // Education field from posts
 }
 
 export interface JobCampaign {

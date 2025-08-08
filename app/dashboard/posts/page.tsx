@@ -59,6 +59,8 @@ export default function PostsPage() {
   const { data: session } = useSession();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const [form, setForm] = useState<Partial<Post>>({ currency: "INR" });
   const [submitting, setSubmitting] = useState(false);
@@ -80,6 +82,11 @@ export default function PostsPage() {
     fetchPosts();
   }, [session?.user?.companyId]);
 
+  const resetForm = () => {
+    setForm({ currency: "INR" });
+    setEditingPost(null);
+  };
+
   const createPost = async () => {
     if (!form.title || !form.department || !form.location || !form.employeeType) {
       toast.error("Please fill required fields");
@@ -95,7 +102,7 @@ export default function PostsPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success("Post created");
-        setForm({ currency: form.currency || "INR" });
+        resetForm();
         fetchPosts();
       } else {
         toast.error(data.error || "Failed to create post");
@@ -105,6 +112,74 @@ export default function PostsPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const updatePost = async () => {
+     if (!editingPost || !form.title || !form.department || !form.location || !form.employeeType) {
+       toast.error("Please fill required fields");
+       return;
+     }
+     try {
+       setSubmitting(true);
+       const res = await fetch(`/api/content/posts`, {
+         method: "PUT",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ ...form, id: editingPost.id }),
+       });
+       const data = await res.json();
+       if (res.ok && data.success) {
+         toast.success("Post updated");
+         resetForm();
+         fetchPosts();
+       } else {
+         toast.error(data.error || "Failed to update post");
+       }
+     } catch (e) {
+       toast.error("Failed to update post");
+     } finally {
+       setSubmitting(false);
+     }
+   };
+
+  const deletePost = async (postId: string) => {
+     try {
+       setDeleting(postId);
+       const res = await fetch(`/api/content/posts?id=${postId}`, {
+         method: "DELETE",
+       });
+       const data = await res.json();
+       if (res.ok && data.success) {
+         toast.success("Post deleted");
+         fetchPosts();
+       } else {
+         toast.error(data.error || "Failed to delete post");
+       }
+     } catch (e) {
+       toast.error("Failed to delete post");
+     } finally {
+       setDeleting(null);
+     }
+   };
+
+  const startEdit = (post: Post) => {
+    setEditingPost(post);
+    setForm({
+      title: post.title,
+      department: post.department,
+      location: post.location,
+      experienceLevel: post.experienceLevel,
+      experienceMin: post.experienceMin,
+      experienceMax: post.experienceMax,
+      employeeType: post.employeeType,
+      salaryMin: post.salaryMin,
+      salaryMax: post.salaryMax,
+      currency: post.currency || "INR",
+      isRemote: post.isRemote,
+      isHybrid: post.isHybrid,
+      salaryNegotiable: post.salaryNegotiable,
+      courseDegree: post.courseDegree,
+      specialization: post.specialization,
+    });
   };
 
   if (loading) {
@@ -258,7 +333,22 @@ export default function PostsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg sm:text-xl font-medium">Create New Post</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-medium">
+            {editingPost ? "Edit Job Post" : "Create New Post"}
+          </CardTitle>
+          {editingPost && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Editing: {editingPost.title}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={resetForm}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4 sm:space-y-6">
           {/* Basic Information */}
@@ -437,17 +527,17 @@ export default function PostsPage() {
           {/* Submit Button */}
           <div className="flex justify-end pt-4 border-t">
             <Button 
-              onClick={createPost} 
+              onClick={editingPost ? updatePost : createPost} 
               disabled={submitting}
               className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white"
             >
               {submitting ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Creating Post...
+                  {editingPost ? "Updating Post..." : "Creating Post..."}
                 </>
               ) : (
-                'Create Job Post'
+                editingPost ? "Update Job Post" : "Create Job Post"
               )}
             </Button>
           </div>
@@ -561,11 +651,30 @@ export default function PostsPage() {
                     
                     {/* Actions */}
                     <div className="flex sm:flex-col gap-2">
-                      <Button variant="outline" size="sm" className="text-xs">
-                        Edit
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs"
+                        onClick={() => startEdit(post)}
+                        disabled={editingPost?.id === post.id}
+                      >
+                        {editingPost?.id === post.id ? "Editing" : "Edit"}
                       </Button>
-                      <Button variant="outline" size="sm" className="text-xs text-red-600 hover:text-red-700 hover:border-red-300">
-                        Delete
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs text-red-600 hover:text-red-700 hover:border-red-300"
+                        onClick={() => deletePost(post.id)}
+                        disabled={deleting === post.id}
+                      >
+                        {deleting === post.id ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600 mr-1"></div>
+                            Deleting
+                          </>
+                        ) : (
+                          "Delete"
+                        )}
                       </Button>
                     </div>
                   </div>

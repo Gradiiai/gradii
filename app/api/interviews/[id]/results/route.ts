@@ -203,11 +203,55 @@ export async function GET(
             }
           }
 
+          // Get the original question data for options
+          let questionOptions = [];
+          let originalQuestion = null;
+          if (originalQuestions[index]) {
+            originalQuestion = originalQuestions[index];
+            questionOptions = originalQuestion.options || originalQuestion.choices || [];
+          }
+
+          // Format user answer to show full option text
+          let formattedUserAnswer = answer.userAnswer || answer.selectedOption || answer.answer || answer.response || answer.code || 'No answer provided';
+          let formattedCorrectAnswer = answer.correctAnswer || answer.correctOption;
+          
+          // If it's an MCQ and we have options, format the answers
+          if (questionOptions.length > 0 && typeof formattedUserAnswer === 'string') {
+            // Try to match user answer to option
+            const userOptionIndex = parseInt(formattedUserAnswer) - 1; // Convert 1-based to 0-based
+            const userOptionLetter = formattedUserAnswer.toLowerCase();
+            
+            if (!isNaN(userOptionIndex) && questionOptions[userOptionIndex]) {
+              formattedUserAnswer = `${formattedUserAnswer}. ${questionOptions[userOptionIndex]}`;
+            } else if (['a', 'b', 'c', 'd', 'e'].includes(userOptionLetter)) {
+              const letterIndex = userOptionLetter.charCodeAt(0) - 97; // Convert a-e to 0-4
+              if (questionOptions[letterIndex]) {
+                formattedUserAnswer = `${formattedUserAnswer.toUpperCase()}. ${questionOptions[letterIndex]}`;
+              }
+            }
+            
+            // Format correct answer similarly
+            if (formattedCorrectAnswer) {
+              const correctOptionIndex = parseInt(formattedCorrectAnswer) - 1;
+              const correctOptionLetter = formattedCorrectAnswer.toLowerCase();
+              
+              if (!isNaN(correctOptionIndex) && questionOptions[correctOptionIndex]) {
+                formattedCorrectAnswer = `${formattedCorrectAnswer}. ${questionOptions[correctOptionIndex]}`;
+              } else if (['a', 'b', 'c', 'd', 'e'].includes(correctOptionLetter)) {
+                const letterIndex = correctOptionLetter.charCodeAt(0) - 97;
+                if (questionOptions[letterIndex]) {
+                  formattedCorrectAnswer = `${formattedCorrectAnswer.toUpperCase()}. ${questionOptions[letterIndex]}`;
+                }
+              }
+            }
+          }
+
           return {
             id: answer.id || (index + 1).toString(),
             question: questionText,
-            userAnswer: answer.userAnswer || answer.selectedOption || answer.answer || answer.response || answer.code || 'No answer provided',
-            correctAnswer: answer.correctAnswer || answer.correctOption || undefined,
+            questionOptions: questionOptions,
+            userAnswer: formattedUserAnswer,
+            correctAnswer: formattedCorrectAnswer,
             isCorrect: answer.isCorrect !== undefined ? answer.isCorrect : undefined,
             rating: answer.rating || answer.score || undefined,
             feedback: answer.feedback || answer.aiAnalysis || answer.aiExplanation || undefined,
@@ -231,9 +275,13 @@ export async function GET(
 
     // Calculate summary metrics
     const totalQuestions = answers.length;
-    const totalAnswered = answers.filter(a => 
-      a.userAnswer && a.userAnswer !== 'No answer provided' && a.userAnswer.trim() !== ''
-    ).length;
+    const totalAnswered = answers.filter(a => {
+      const val = a.userAnswer || a.answer || a.selectedOption || a.response || a.code;
+      if (val === undefined || val === null) return false;
+      if (typeof val === 'string') return val.trim() !== '' && val !== 'No answer provided';
+      // allow numbers/objects as answered
+      return true;
+    }).length;
     const completionRate = totalQuestions > 0 ? Math.round((totalAnswered / totalQuestions) * 100) : 0;
     const accuracy = (historyRecord.maxScore && historyRecord.score && historyRecord.maxScore > 0) 
       ? Math.round((historyRecord.score / historyRecord.maxScore) * 100) 

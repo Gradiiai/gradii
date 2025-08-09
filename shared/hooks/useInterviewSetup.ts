@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getInterviewSetupsByCampaign, createInterviewSetup } from '@/lib/database/queries/campaigns';
+import { getInterviewSetupsByCampaign } from '@/lib/database/queries/campaigns';
 
 interface InterviewTemplate {
   id: string;
@@ -150,17 +150,30 @@ export function useInterviewSetup(): UseInterviewSetupReturn {
           campaignId: data.campaignId,
           roundNumber: i + 1,
           roundName: round.name,
-          interviewType: round.type,
+          roundType: round.type, // Fix: API expects 'roundType', not 'interviewType'
           timeLimit: timeLimitInMinutes,
           questionCollectionId: round.questionCollectionId || round.bankId || undefined, // Use questionCollectionId (UUID)
           numberOfQuestions: round.numberOfQuestions || 10,
           randomizeQuestions: round.chooseRandom || true,
-          difficultyLevel: round.difficulty || 'medium',
+          difficultyLevel: round.difficulty || 'medium', // Database expects 'difficultyLevel'
           instructions: round.instructions || '',
           passingScore: round.passingScore || 70
         };
         
-        const result = await createInterviewSetup(setupData);
+        const response = await fetch('/api/interviews/setup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(setupData)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          result.success = false;
+          result.error = result.error || 'Failed to create interview setup';
+        }
         results.push(result);
       }
       

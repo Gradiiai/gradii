@@ -35,14 +35,18 @@ interface InterviewData {
 }
 
 interface MCQQuestion {
-  id: number;
+  id: number | string;
   question: string;
-  options: string[] | Array<{id: number; text: string; isCorrect: boolean}>;
+  options?: string[] | Array<{id: number | string; text: string; isCorrect: boolean}>;
+  multipleChoiceOptions?: any;
+  choices?: any;
+  expectedAnswer?: string | any;
   correctAnswer?: number;
   selectedAnswer?: number;
   category?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   explanation?: string;
+  [key: string]: any; // Allow for dynamic properties like option1, option2, etc.
 }
 
 function MCQInterviewContent({ params }: MCQInterviewProps) {
@@ -56,8 +60,9 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [answers, setAnswers] = useState<Record<string | number, number>>({});
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [startTimeMs, setStartTimeMs] = useState<number | null>(null);
 
   useEffect(() => {
     console.log('MCQ useEffect triggered:', { interviewId, email });
@@ -128,6 +133,7 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
         
         setInterview(interviewData);
         setTimeRemaining((interviewInfo.duration || 30) * 60); // Convert minutes to seconds
+        setStartTimeMs(Date.now());
         
         // Load saved answers if they exist
         if (interviewInfo.savedAnswers && typeof interviewInfo.savedAnswers === 'object') {
@@ -172,7 +178,15 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
     }
   }, [currentQuestion, interview, answers]);
 
-  const handleAnswerSelect = async (questionId: number | undefined, answerIndex: number) => {
+  // Helper to compute time spent reliably
+  const getTimeSpentSeconds = () => {
+    if (startTimeMs) {
+      return Math.max(0, Math.floor((Date.now() - startTimeMs) / 1000));
+    }
+    return interview?.duration ? (interview.duration * 60 - timeRemaining) : 0;
+  };
+
+  const handleAnswerSelect = async (questionId: string | number | undefined, answerIndex: number) => {
     console.log(`Selecting answer for question ${questionId}, option ${answerIndex}`);
     
     // Validate inputs
@@ -205,7 +219,7 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
         body: JSON.stringify({
           action: 'save_progress',
           answers: newAnswers,
-          timeSpent: interview?.duration ? (interview.duration * 60 - timeRemaining) : 0,
+          timeSpent: getTimeSpentSeconds(),
           questionType: 'mcq',
           email: emailToUse
         }),
@@ -257,6 +271,8 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
         return;
       }
       
+      const timeSpentValue = getTimeSpentSeconds();
+      
       const response = await fetch(`/api/interview/${interviewId}`, {
         method: 'POST',
         credentials: 'include',
@@ -266,7 +282,7 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
         body: JSON.stringify({
           action: 'submit',
           answers: answers,
-          timeSpent: interview?.duration ? (interview.duration * 60 - timeRemaining) : 0,
+          timeSpent: timeSpentValue,
           questionType: 'mcq',
           email: emailToUse
         }),
@@ -409,9 +425,68 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
               <h2 className="text-lg font-medium mb-6 text-gray-900">{currentQ.question}</h2>
               
               <div className="space-y-3">
-                {currentQ.options?.map((option: any, index: number) => {
-                  // Handle both string and object formats
-                  const optionText = typeof option === 'string' ? option : option.text;
+                {(() => {
+                  // Handle multiple possible formats for options
+                  let options = currentQ.options || currentQ.multipleChoiceOptions || currentQ.choices || [];
+                  
+                  // If options is still empty, try to extract from other fields
+                  if (!options || options.length === 0) {
+                    // Try option1, option2, etc. format
+                    const optionKeys = ['option1', 'option2', 'option3', 'option4', 'optionA', 'optionB', 'optionC', 'optionD'];
+                    options = optionKeys.map(key => currentQ[key]).filter(Boolean);
+                  }
+                  
+                  // If still no options, try to parse from expectedAnswer field (question bank format)
+                  if ((!options || options.length === 0) && currentQ.expectedAnswer) {
+                    try {
+                      const expectedData = typeof currentQ.expectedAnswer === 'string' 
+                        ? JSON.parse(currentQ.expectedAnswer) 
+                        : currentQ.expectedAnswer;
+                      
+                      if (expectedData.incorrect) {
+                        // Extract options from the incorrect answers object and add the correct answer
+                        const incorrectOptions = Object.entries(expectedData.incorrect).map(([key, value]) => ({
+                          id: key,
+                          text: value as string,
+                          isCorrect: false
+                        }));
+                        
+                        // Add the correct answer
+                        const correctOption = {
+                          id: 'B',
+                          text: expectedData.correct,
+                          isCorrect: true
+                        } as any;
+                        
+                        const allOptions = [...incorrectOptions];
+                        const usedKeys = incorrectOptions.map(opt => opt.id as string);
+                        const availableKeys = ['A', 'B', 'C', 'D'].filter(key => !usedKeys.includes(key));
+                        
+                        if (availableKeys.length > 0) {
+                          correctOption.id = availableKeys[0];
+                          allOptions.push(correctOption);
+                          // Sort by key (A, B, C, D)
+                          options = allOptions.sort((a: any, b: any) => (a.id as string).localeCompare(b.id as string));
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error parsing expectedAnswer:', error);
+                    }
+                  }
+                  
+                  if (!options || options.length === 0) {
+                    return (
+                      <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+                        <p className="text-red-700">No answer options found for this question. Please contact support.</p>
+                      </div>
+                    );
+                  }
+                  
+                  return options.map((option: any, index: number) => {
+                    // Handle both string and object formats
+                    const optionText = typeof option === 'string' 
+                      ? option 
+                      : (option.text || option.option || option.value || option);
                   
                   return (
                     <label
@@ -431,21 +506,27 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
                         className="mt-1 mr-3 text-blue-600 focus:ring-blue-500"
                       />
                       <div className="flex-1">
-                        <span className="text-gray-900 leading-relaxed">{optionText}</span>
+                        <div className="flex items-start">
+                          <span className="inline-flex items-center justify-center w-6 h-6 bg-gray-100 text-gray-600 text-sm font-medium rounded-full mr-3 mt-0.5 flex-shrink-0">
+                            {option.id || String.fromCharCode(65 + index)}
+                          </span>
+                          <span className="text-gray-900 leading-relaxed">{optionText}</span>
+                        </div>
                       </div>
                       {answers[currentQ.id ?? currentQuestion] === index && (
                         <CheckCircle className="h-5 w-5 text-blue-600 ml-2 flex-shrink-0" />
                       )}
                     </label>
                   );
-                }) || []}
+                  });
+                })()}
               </div>
               
               {timeRemaining < 300 && (
                 <Alert className="mt-4">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Warning:</strong> Less than 5 minutes remaining!
+                    You have less than 5 minutes remaining. Please review your answers.
                   </AlertDescription>
                 </Alert>
               )}
@@ -513,10 +594,10 @@ function MCQInterviewContent({ params }: MCQInterviewProps) {
             <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>
-                  Answered: {Object.keys(answers).filter(key => answers[parseInt(key)] !== undefined).length} of {interview?.questions?.length || 0}
+                  Answered: {Object.values(answers).filter(v => v !== undefined).length} of {interview?.questions?.length || 0}
                 </span>
                 <span>
-                  Remaining: {Math.max(0, (interview?.questions?.length || 0) - Object.keys(answers).filter(key => answers[parseInt(key)] !== undefined).length)}
+                  Remaining: {Math.max(0, (interview?.questions?.length || 0) - Object.values(answers).filter(v => v !== undefined).length)}
                 </span>
               </div>
             </div>

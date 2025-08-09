@@ -274,6 +274,13 @@ async function handleInterviewSubmission(interviewId: string, sessionEmail: stri
   try {
     const { answers, timeSpent, programmingLanguage, questionType, videoRecordingUrl, candidateEmail } = submissionData;
     
+    console.log('Interview submission data:', {
+      interviewId,
+      timeSpent,
+      questionType,
+      answersCount: answers ? answers.length : 'no answers'
+    });
+    
     // Use candidateEmail from submission data if provided, otherwise use session email
     const emailToUse = candidateEmail || sessionEmail;
 
@@ -429,6 +436,7 @@ async function handleInterviewSubmission(interviewId: string, sessionEmail: stri
           score: score,
           maxScore: maxScore,
           duration: Math.round((timeSpent || 0) / 60), // Convert to minutes
+
           passed: (answeredQuestions / totalQuestions) >= 0.6,
           programmingLanguage: programmingLanguage || null,
           recordingUrl: videoRecordingUrl || null

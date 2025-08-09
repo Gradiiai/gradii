@@ -215,9 +215,12 @@ export async function GET(
         const feedbackData = JSON.parse(result.feedback);
         if (feedbackData.answers && Array.isArray(feedbackData.answers)) {
           totalQuestions = feedbackData.answers.length;
-          answeredQuestions = feedbackData.answers.filter((a: any) => 
-            a.answer || a.userAnswer || a.selectedOption || a.response || a.code
-          ).length;
+          answeredQuestions = feedbackData.answers.filter((a: any) => {
+            const answer = a.answer || a.userAnswer || a.selectedOption || a.response || a.code;
+            if (answer === undefined || answer === null) return false;
+            if (typeof answer === 'string') return answer.trim() !== '' && answer !== 'No answer provided';
+            return true; // Non-string answers (numbers, objects) are considered answered
+          }).length;
         }
       } catch (error) {
         console.error('Error parsing feedback:', error);
@@ -232,8 +235,8 @@ export async function GET(
       jobTitle: jobTitle,
       interviewType: result.interviewType,
       completedAt: result.completedAt,
-      timeSpent: result.duration || 0, // in minutes
-      actualDuration: result.duration || 0, // in minutes
+      timeSpent: (result.duration || 0) * 60, // Convert minutes back to seconds for display
+      actualDuration: (result.duration || 0) * 60, // Convert minutes back to seconds for display
       totalQuestions: totalQuestions,
       answeredQuestions: answeredQuestions,
       score: result.score || 0,

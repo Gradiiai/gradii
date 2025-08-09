@@ -240,6 +240,16 @@ export default function InterviewSetupPage() {
           qs.id === questionSetId ? { ...qs, [field]: value } : qs
         ) || [],
     }));
+    
+    // If updating bankId, also update the round's bankId field for the first question set
+    if (field === 'bankId') {
+      const questionSets = roundQuestionSets[roundId] || [];
+      const isFirstQuestionSet = questionSets.length > 0 && questionSets[0].id === questionSetId;
+      
+      if (isFirstQuestionSet) {
+        updateRoundInStore(roundId, 'bankId', value);
+      }
+    }
   };
 
   // Placeholder function for toggling working days
@@ -1010,6 +1020,18 @@ export default function InterviewSetupPage() {
               </motion.div>
             );
           })}
+        </div>
+
+        {/* Add Round Button */}
+        <div className="mt-6 flex justify-center">
+          <Button
+            onClick={handleAddRound}
+            variant="outline"
+            className="flex items-center gap-2 bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200"
+          >
+            <Plus className="w-4 h-4" />
+            Add Round
+          </Button>
         </div>
 
         {/* Auto-Scheduling Configuration - Single section for all rounds */}

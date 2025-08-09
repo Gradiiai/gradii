@@ -956,6 +956,8 @@ export async function createInterviewSetup(data: {
   passingScore?: number;
 }) {
   try {
+    console.log('🗄️ Database: Creating interview setup with data:', data);
+    
     // First, validate that the campaign exists
     const campaignResult = await getJobCampaignById(data.campaignId);
     if (!campaignResult.success || !campaignResult.data) {
@@ -966,6 +968,7 @@ export async function createInterviewSetup(data: {
     }
 
     const [setup] = await db.insert(interviewSetups).values(data).returning();
+    console.log('✅ Database: Interview setup created successfully:', setup);
     return { success: true, data: setup };
   } catch (error) {
     console.error('Error creating interview setup:', error);

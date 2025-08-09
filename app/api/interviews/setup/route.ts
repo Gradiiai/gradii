@@ -20,11 +20,25 @@ export async function POST(request: NextRequest) {
       roundType,
       timeLimit,
       numberOfQuestions,
-      difficulty,
+      difficultyLevel,
       passingScore,
       instructions,
-      roundOrder
+      roundOrder,
+      questionCollectionId
     } = body;
+
+    console.log('📝 Interview setup API received data:', {
+      campaignId,
+      roundName,
+      roundType,
+      timeLimit,
+      numberOfQuestions,
+      difficultyLevel,
+      passingScore,
+      instructions,
+      roundOrder,
+      questionCollectionId
+    });
 
     // Validate required fields
     if (!campaignId || !roundName || !roundType || timeLimit === undefined || numberOfQuestions === undefined || passingScore === undefined) {
@@ -34,17 +48,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await createInterviewSetup({
+    const setupData = {
       campaignId,
       roundNumber: roundOrder ? parseInt(roundOrder) : 1,
       roundName,
       interviewType: roundType,
       timeLimit: parseInt(timeLimit),
       numberOfQuestions: parseInt(numberOfQuestions),
-      difficultyLevel: difficulty,
+      difficultyLevel,
       instructions,
-      passingScore: parseInt(passingScore)
-    });
+      passingScore: parseInt(passingScore),
+      questionCollectionId
+    };
+
+    console.log('💾 Saving interview setup with data:', setupData);
+
+    const result = await createInterviewSetup(setupData);
 
     if (!result.success) {
       return NextResponse.json(

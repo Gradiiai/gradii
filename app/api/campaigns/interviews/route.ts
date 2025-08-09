@@ -166,6 +166,8 @@ export async function POST(request: NextRequest) {
       .where(eq(interviewSetups.id, interviewSetupId))
       .limit(1);
 
+    console.log('📋 Retrieved interview setup from database:', setup);
+
     if (!setup) {
       return NextResponse.json(
         { error: 'Interview setup not found' },
